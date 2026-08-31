@@ -236,6 +236,7 @@ class Store {
 
   async _initDatabaseSync() {
     try {
+      if (!api || !api.isOnline) return;
       const serverState = await api.fetchAll();
       if (serverState) {
         let changed = false;
@@ -253,11 +254,11 @@ class Store {
           if (typeof localStorage !== 'undefined') {
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
           }
-          this._notify('sync', this.state);
+          this.emit('sync', this.state);
         }
       }
     } catch (e) {
-      console.log('[Store] Working in Local Database mode');
+      // Working in Local Database mode
     }
   }
 
@@ -266,8 +267,8 @@ class Store {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
       }
-      // Asynchronously sync state to Backend Database if connected
-      if (typeof window !== 'undefined' && api) {
+      // Asynchronously sync state to Backend Database only if connected
+      if (typeof window !== 'undefined' && api && api.isOnline) {
         api.syncState(this.state).catch(() => {});
       }
     } catch (e) {
