@@ -242,6 +242,25 @@ class Store {
     }
   }
 
+  _syncCurrentUserToAccounts() {
+    if (!this.state.user || !this.state.user.id) return;
+    this.accounts = this._loadAccounts();
+    const idx = this.accounts.findIndex(a => 
+      a.id === this.state.user.id || 
+      ((a.email && this.state.user.email) && a.email.toLowerCase() === this.state.user.email.toLowerCase()) ||
+      ((a.name && this.state.user.name) && a.name.toLowerCase() === this.state.user.name.toLowerCase())
+    );
+    if (idx > -1) {
+      this.accounts[idx] = {
+        ...this.accounts[idx],
+        ...this.state.user
+      };
+    } else if (this.state.user.id && !this.state.user.id.startsWith('guest')) {
+      this.accounts.push({ ...this.state.user });
+    }
+    this._saveAccounts();
+  }
+
   // Authentication
   login({ identifier, password, rememberMe = true }) {
     const cleanId = (identifier || '').trim().toLowerCase();
@@ -270,12 +289,19 @@ class Store {
       return { success: false, message: 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง' };
     }
 
+    // Ensure array structures
+    targetAccount.friends = targetAccount.friends || [];
+    targetAccount.friendRequests = targetAccount.friendRequests || [];
+    targetAccount.sentRequests = targetAccount.sentRequests || [];
+    targetAccount.following = targetAccount.following || [];
+
     // Login successful
     this.state.user = { ...targetAccount };
     this.state.isAuthenticated = true;
     this._saveState();
     this.emit('auth:changed', true);
     this.emit('user:updated', this.state.user);
+    this.emit('friends:updated', { type: 'login_sync' });
 
     return {
       success: true,
@@ -318,7 +344,7 @@ class Store {
     const defaultAvatar = avatar || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=200&q=80';
 
     const newUser = {
-      id: `user-${Date.now()}`,
+      id: `user-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
       name: cleanName,
       gamerTag: tag,
       email: cleanEmail,
@@ -332,10 +358,10 @@ class Store {
       rankTitle: '🌱 Rookie Gamer',
       joinedDate: 'กุมภาพันธ์ 2026',
       favoriteGames: favoriteGames && favoriteGames.length ? favoriteGames : ['Valorant', 'Genshin Impact'],
-      friends: ['p-1'],
-      friendRequests: ['p-4'],
+      friends: [],
+      friendRequests: [],
       sentRequests: [],
-      following: ['p-1'],
+      following: [],
       stats: {
         postsCount: 0,
         squadsJoined: 0,
@@ -357,6 +383,7 @@ class Store {
     this._saveState();
     this.emit('auth:changed', true);
     this.emit('user:updated', this.state.user);
+    this.emit('friends:updated', { type: 'user_registered' });
 
     return {
       success: true,
@@ -747,6 +774,7 @@ class Store {
     if (leveledUp) {
       this.emit('user:levelup', user);
     }
+    this._syncCurrentUserToAccounts();
     this.emit('user:updated', user);
   }
 
@@ -755,31 +783,132 @@ class Store {
       ...this.state.user,
       ...newData
     };
+    this._syncCurrentUserToAccounts();
     this.emit('user:updated', this.state.user);
   }
 
   // --- Social & Friends System ---
   getPlayers() {
-    return this.state.players || INITIAL_PLAYERS;
+    this.accounts = this._loadAccounts();
+    const currentUserId = this.state.user?.id;
+    const currentUserName = (this.state.user?.name || '').toLowerCase();
+
+    // Registered users mapped to Player format
+    const registeredPlayers = this.accounts
+      .filter(acc => acc.id !== currentUserId && (acc.name || '').toLowerCase() !== currentUserName)
+      .map(acc => {
+        const userFriends = this.state.user?.friends || [];
+        const accFriends = acc.friends || [];
+        const mutualCount = accFriends.filter(fId => userFriends.includes(fId)).length;
+        const primaryGame = (acc.favoriteGames && acc.favoriteGames[0]) || 'Valorant';
+
+        return {
+          id: acc.id,
+          name: acc.name,
+          gamerTag: acc.gamerTag || '#0000',
+          avatar: acc.avatar || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=200&q=80',
+          banner: acc.banner || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+          level: acc.level || 1,
+          rank: acc.rankTitle || '🌱 Rookie Gamer',
+          rankTitle: acc.rankTitle || '🌱 Rookie Gamer',
+          status: 'online',
+          statusText: '🟢 สมาชิก NEXUS TH • ออนไลน์',
+          primaryGame: primaryGame,
+          favoriteGames: acc.favoriteGames || ['Valorant'],
+          bio: acc.bio || 'สมาชิกแห่ง NEXUS GAMING TH พร้อมร่วมตี้และเล่นเกมด้วยกัน!',
+          mutualFriends: mutualCount,
+          followersCount: (acc.following || []).length + 8,
+          isRegisteredUser: true,
+          email: acc.email
+        };
+      });
+
+    // Existing mock players from INITIAL_PLAYERS
+    const existingIds = new Set(registeredPlayers.map(p => p.id));
+    const existingNames = new Set(registeredPlayers.map(p => p.name.toLowerCase()));
+    existingNames.add(currentUserName);
+    if (currentUserId) existingIds.add(currentUserId);
+
+    const basePlayers = (INITIAL_PLAYERS || []).filter(p => 
+      !existingIds.has(p.id) && 
+      !existingNames.has((p.name || '').toLowerCase())
+    );
+
+    return [...registeredPlayers, ...basePlayers];
   }
 
   getPlayerById(id) {
-    return (this.state.players || []).find(p => p.id === id) || null;
+    if (!id) return null;
+    const cleanId = id.toString();
+    const all = this.getPlayers();
+    let found = all.find(p => 
+      p.id === cleanId || 
+      (p.name && p.name.toLowerCase() === cleanId.toLowerCase()) || 
+      p.gamerTag === cleanId
+    );
+    if (found) return found;
+
+    // Check accounts directly
+    this.accounts = this._loadAccounts();
+    const acc = this.accounts.find(a => 
+      a.id === cleanId || 
+      (a.name && a.name.toLowerCase() === cleanId.toLowerCase()) || 
+      a.gamerTag === cleanId ||
+      (a.email && a.email.toLowerCase() === cleanId.toLowerCase())
+    );
+
+    if (acc) {
+      return {
+        id: acc.id,
+        name: acc.name,
+        gamerTag: acc.gamerTag || '#0000',
+        avatar: acc.avatar || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=200&q=80',
+        banner: acc.banner || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+        level: acc.level || 1,
+        rank: acc.rankTitle || '🌱 Rookie Gamer',
+        rankTitle: acc.rankTitle || '🌱 Rookie Gamer',
+        status: 'online',
+        statusText: '🟢 สมาชิก NEXUS TH • ออนไลน์',
+        primaryGame: (acc.favoriteGames && acc.favoriteGames[0]) || 'Valorant',
+        favoriteGames: acc.favoriteGames || ['Valorant'],
+        bio: acc.bio || 'สมาชิกแห่ง NEXUS GAMING TH',
+        mutualFriends: 1,
+        followersCount: 15,
+        isRegisteredUser: true
+      };
+    }
+
+    return null;
   }
 
   isFriend(playerId) {
+    if (!playerId || !this.state.user) return false;
     const friends = this.state.user.friends || [];
-    return friends.includes(playerId);
+    if (friends.includes(playerId)) return true;
+
+    const targetPlayer = this.getPlayerById(playerId);
+    if (targetPlayer && friends.includes(targetPlayer.id)) return true;
+    return false;
   }
 
   isPending(playerId) {
+    if (!playerId || !this.state.user) return false;
     const sent = this.state.user.sentRequests || [];
-    return sent.includes(playerId);
+    if (sent.includes(playerId)) return true;
+
+    const targetPlayer = this.getPlayerById(playerId);
+    if (targetPlayer && sent.includes(targetPlayer.id)) return true;
+    return false;
   }
 
   hasIncomingRequest(playerId) {
+    if (!playerId || !this.state.user) return false;
     const reqs = this.state.user.friendRequests || [];
-    return reqs.includes(playerId);
+    if (reqs.includes(playerId)) return true;
+
+    const targetPlayer = this.getPlayerById(playerId);
+    if (targetPlayer && reqs.includes(targetPlayer.id)) return true;
+    return false;
   }
 
   isFollowing(playerId) {
@@ -789,24 +918,44 @@ class Store {
 
   sendFriendRequest(playerId) {
     const user = this.state.user;
+    if (!user) return { success: false, message: 'กรุณาเข้าสู่ระบบก่อนเพิ่มเพื่อน' };
     if (!user.friends) user.friends = [];
     if (!user.sentRequests) user.sentRequests = [];
     if (!user.friendRequests) user.friendRequests = [];
 
-    if (user.friends.includes(playerId)) {
-      return { success: false, message: 'คุณเป็นเพื่อนกับผู้เล่นคนนี้อยู่แล้ว' };
+    if (user.id === playerId || user.name.toLowerCase() === (playerId || '').toLowerCase()) {
+      return { success: false, message: 'คุณไม่สามารถเพิ่มตัวเองเป็นเพื่อนได้ 😄' };
     }
 
-    if (user.sentRequests.includes(playerId)) {
-      return { success: false, message: 'คุณได้ส่งคำขอเป็นเพื่อนไปแล้ว กำลังรอตอบรับ' };
+    if (this.isFriend(playerId)) {
+      return { success: false, message: 'คุณเป็นเพื่อนกับผู้เล่นคนนี้อยู่แล้ว 🤝' };
+    }
+
+    if (this.isPending(playerId)) {
+      return { success: false, message: 'คุณได้ส่งคำขอเป็นเพื่อนไปแล้ว กำลังรอการตอบรับ ⏳' };
     }
 
     // If there's an incoming request from this player, auto-accept it!
-    if (user.friendRequests.includes(playerId)) {
+    if (this.hasIncomingRequest(playerId)) {
       return this.acceptFriendRequest(playerId);
     }
 
+    // Add to current user sentRequests
     user.sentRequests.push(playerId);
+
+    // Sync with registered account if target is in this.accounts
+    this.accounts = this._loadAccounts();
+    const targetAccount = this.accounts.find(a => a.id === playerId || (a.name && a.name.toLowerCase() === (playerId || '').toLowerCase()));
+    if (targetAccount) {
+      if (!targetAccount.friendRequests) targetAccount.friendRequests = [];
+      if (!targetAccount.friendRequests.includes(user.id)) {
+        targetAccount.friendRequests.push(user.id);
+      }
+      this._saveAccounts();
+    }
+
+    this._syncCurrentUserToAccounts();
+
     this.addXP(10); // Reward for social activity
     this.emit('friends:updated', { type: 'request_sent', playerId });
     this.emit('user:updated', this.state.user);
@@ -815,7 +964,7 @@ class Store {
     const targetName = player ? player.name : 'ผู้เล่น';
     return {
       success: true,
-      message: `ส่งคำขอเป็นเพื่อนถึง ${targetName} เรียบร้อยแล้ว! (+10 XP)`
+      message: `ส่งคำขอเป็นเพื่อนถึง ${targetName} เรียบร้อยแล้ว! (+10 XP) 🚀`
     };
   }
 
@@ -825,12 +974,30 @@ class Store {
     if (!user.friendRequests) user.friendRequests = [];
     if (!user.sentRequests) user.sentRequests = [];
 
+    // Remove from user requests
     user.friendRequests = user.friendRequests.filter(id => id !== playerId);
     user.sentRequests = user.sentRequests.filter(id => id !== playerId);
 
     if (!user.friends.includes(playerId)) {
       user.friends.push(playerId);
     }
+
+    // Sync with target registered account in accounts
+    this.accounts = this._loadAccounts();
+    const targetAccount = this.accounts.find(a => a.id === playerId || (a.name && a.name.toLowerCase() === (playerId || '').toLowerCase()));
+    if (targetAccount) {
+      if (!targetAccount.friends) targetAccount.friends = [];
+      if (!targetAccount.friends.includes(user.id)) {
+        targetAccount.friends.push(user.id);
+      }
+      if (!targetAccount.friendRequests) targetAccount.friendRequests = [];
+      targetAccount.friendRequests = targetAccount.friendRequests.filter(id => id !== user.id);
+      if (!targetAccount.sentRequests) targetAccount.sentRequests = [];
+      targetAccount.sentRequests = targetAccount.sentRequests.filter(id => id !== user.id);
+      this._saveAccounts();
+    }
+
+    this._syncCurrentUserToAccounts();
 
     this.addXP(25); // Reward for accepting friend
     this.emit('friends:updated', { type: 'friend_added', playerId });
@@ -840,7 +1007,7 @@ class Store {
     const targetName = player ? player.name : 'ผู้เล่น';
     return {
       success: true,
-      message: `เป็นเพื่อนกับ ${targetName} เรียบร้อยแล้ว! (+25 XP)`
+      message: `เป็นเพื่อนกับ ${targetName} เรียบร้อยแล้ว! (+25 XP) 🎉`
     };
   }
 
@@ -848,6 +1015,17 @@ class Store {
     const user = this.state.user;
     if (!user.friendRequests) user.friendRequests = [];
     user.friendRequests = user.friendRequests.filter(id => id !== playerId);
+
+    // Sync with target registered account
+    this.accounts = this._loadAccounts();
+    const targetAccount = this.accounts.find(a => a.id === playerId || (a.name && a.name.toLowerCase() === (playerId || '').toLowerCase()));
+    if (targetAccount) {
+      if (!targetAccount.sentRequests) targetAccount.sentRequests = [];
+      targetAccount.sentRequests = targetAccount.sentRequests.filter(id => id !== user.id);
+      this._saveAccounts();
+    }
+
+    this._syncCurrentUserToAccounts();
 
     this.emit('friends:updated', { type: 'request_declined', playerId });
     this.emit('user:updated', this.state.user);
@@ -865,6 +1043,17 @@ class Store {
     if (!user.sentRequests) user.sentRequests = [];
     user.sentRequests = user.sentRequests.filter(id => id !== playerId);
 
+    // Sync with target registered account
+    this.accounts = this._loadAccounts();
+    const targetAccount = this.accounts.find(a => a.id === playerId || (a.name && a.name.toLowerCase() === (playerId || '').toLowerCase()));
+    if (targetAccount) {
+      if (!targetAccount.friendRequests) targetAccount.friendRequests = [];
+      targetAccount.friendRequests = targetAccount.friendRequests.filter(id => id !== user.id);
+      this._saveAccounts();
+    }
+
+    this._syncCurrentUserToAccounts();
+
     this.emit('friends:updated', { type: 'request_cancelled', playerId });
     this.emit('user:updated', this.state.user);
 
@@ -878,6 +1067,17 @@ class Store {
     const user = this.state.user;
     if (!user.friends) user.friends = [];
     user.friends = user.friends.filter(id => id !== playerId);
+
+    // Sync with target registered account
+    this.accounts = this._loadAccounts();
+    const targetAccount = this.accounts.find(a => a.id === playerId || (a.name && a.name.toLowerCase() === (playerId || '').toLowerCase()));
+    if (targetAccount) {
+      if (!targetAccount.friends) targetAccount.friends = [];
+      targetAccount.friends = targetAccount.friends.filter(id => id !== user.id);
+      this._saveAccounts();
+    }
+
+    this._syncCurrentUserToAccounts();
 
     this.emit('friends:updated', { type: 'friend_removed', playerId });
     this.emit('user:updated', this.state.user);
@@ -893,48 +1093,85 @@ class Store {
   addFriendDirect(query) {
     const cleanQuery = (query || '').trim();
     if (!cleanQuery) {
-      return { success: false, message: 'กรุณากรอกชื่อผู้เล่น หรือ GamerTag (เช่น #1337)' };
+      return { success: false, message: 'กรุณากรอกชื่อผู้เล่น, อีเมล หรือ GamerTag (เช่น #1337 หรือ Alice#1234)' };
     }
 
     const q = cleanQuery.toLowerCase();
-    let player = (this.state.players || []).find(p =>
+    const user = this.state.user;
+
+    // Check if user is searching for themselves
+    if (
+      user && (
+        user.name.toLowerCase() === q ||
+        (user.gamerTag && user.gamerTag.toLowerCase() === q) ||
+        `${user.name}${user.gamerTag}`.toLowerCase() === q.replace(/\s+/g, '') ||
+        (user.email && user.email.toLowerCase() === q)
+      )
+    ) {
+      return { success: false, message: 'คุณไม่สามารถเพิ่มตัวเองเป็นเพื่อนได้ 😄' };
+    }
+
+    // 1. Search in all registered accounts first
+    this.accounts = this._loadAccounts();
+    const targetAcc = this.accounts.find(acc => {
+      if (acc.id === user?.id) return false;
+      const matchName = (acc.name || '').toLowerCase() === q;
+      const matchTag = (acc.gamerTag || '').toLowerCase() === q;
+      const matchFull = `${acc.name}${acc.gamerTag}`.toLowerCase() === q.replace(/\s+/g, '');
+      const matchEmail = (acc.email || '').toLowerCase() === q;
+      const partialName = q.length >= 2 && (acc.name || '').toLowerCase().includes(q);
+      return matchName || matchTag || matchFull || matchEmail || partialName;
+    });
+
+    if (targetAcc) {
+      return this.sendFriendRequest(targetAcc.id);
+    }
+
+    // 2. Search in mock/base players
+    const allPlayers = this.getPlayers();
+    let player = allPlayers.find(p =>
       p.name.toLowerCase() === q ||
       p.gamerTag.toLowerCase() === q ||
       `${p.name}${p.gamerTag}`.toLowerCase() === q.replace(/\s+/g, '')
     );
 
     if (!player && cleanQuery.length >= 3) {
-      player = (this.state.players || []).find(p =>
+      player = allPlayers.find(p =>
         p.name.toLowerCase().includes(q) ||
         p.gamerTag.toLowerCase().includes(q)
       );
     }
 
-    if (!player) {
-      const tag = cleanQuery.startsWith('#') ? cleanQuery : `#${Math.floor(1000 + Math.random() * 9000)}`;
-      const name = cleanQuery.startsWith('#') ? `Gamer_${cleanQuery.replace('#', '')}` : cleanQuery.split('#')[0];
-      player = {
-        id: `p-dyn-${Date.now()}`,
-        name: name,
-        gamerTag: tag,
-        avatar: `https://images.unsplash.com/photo-${1535713875000 + Math.floor(Math.random() * 500)}?auto=format&fit=crop&w=200&q=80`,
-        banner: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
-        level: Math.floor(15 + Math.random() * 40),
-        rank: '🌟 Ascendant / Diamond',
-        rankTitle: '🎯 Pro Challenger',
-        status: 'online',
-        statusText: 'กำลังออนไลน์ในระบบ NEXUS',
-        primaryGame: 'Valorant',
-        favoriteGames: ['Valorant', 'Genshin Impact'],
-        bio: 'เกมเมอร์สายจริงจัง ค้นพบผ่าน GamerTag Direct Add 🚀',
-        mutualFriends: 1,
-        followersCount: Math.floor(20 + Math.random() * 100)
-      };
-      if (!this.state.players) this.state.players = [];
-      this.state.players.unshift(player);
+    if (player) {
+      return this.sendFriendRequest(player.id);
     }
 
-    return this.sendFriendRequest(player.id);
+    // 3. If still not found, create a dynamic gamer profile and send request
+    const tag = cleanQuery.startsWith('#') ? cleanQuery : `#${Math.floor(1000 + Math.random() * 9000)}`;
+    const name = cleanQuery.startsWith('#') ? `Gamer_${cleanQuery.replace('#', '')}` : cleanQuery.split('#')[0];
+    const newPlayer = {
+      id: `p-dyn-${Date.now()}`,
+      name: name,
+      gamerTag: tag,
+      avatar: `https://images.unsplash.com/photo-${1535713875000 + Math.floor(Math.random() * 500)}?auto=format&fit=crop&w=200&q=80`,
+      banner: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+      level: Math.floor(15 + Math.random() * 40),
+      rank: '🌟 Ascendant / Diamond',
+      rankTitle: '🎯 Pro Challenger',
+      status: 'online',
+      statusText: '🟢 กำลังออนไลน์ในระบบ NEXUS',
+      primaryGame: 'Valorant',
+      favoriteGames: ['Valorant', 'Genshin Impact'],
+      bio: 'เกมเมอร์สายจริงจัง ค้นพบผ่าน GamerTag Direct Add 🚀',
+      mutualFriends: 1,
+      followersCount: Math.floor(20 + Math.random() * 100)
+    };
+
+    if (!this.state.players) this.state.players = [];
+    this.state.players.unshift(newPlayer);
+    this._saveState();
+
+    return this.sendFriendRequest(newPlayer.id);
   }
 
   toggleFollow(playerId) {

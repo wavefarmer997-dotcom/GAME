@@ -365,8 +365,7 @@ function renderDiscoverTab(container) {
 function renderMyFriendsTab(container) {
   const user = store.state.user;
   const friendIds = user.friends || [];
-  const allPlayers = store.getPlayers();
-  const myFriends = allPlayers.filter(p => friendIds.includes(p.id));
+  const myFriends = friendIds.map(id => store.getPlayerById(id)).filter(Boolean);
 
   if (!myFriends.length) {
     container.innerHTML = `
@@ -478,10 +477,9 @@ function renderRequestsTab(container) {
   const user = store.state.user;
   const incomingIds = user.friendRequests || [];
   const sentIds = user.sentRequests || [];
-  const allPlayers = store.getPlayers();
 
-  const incomingPlayers = allPlayers.filter(p => incomingIds.includes(p.id));
-  const sentPlayers = allPlayers.filter(p => sentIds.includes(p.id));
+  const incomingPlayers = incomingIds.map(id => store.getPlayerById(id)).filter(Boolean);
+  const sentPlayers = sentIds.map(id => store.getPlayerById(id)).filter(Boolean);
 
   if (!incomingPlayers.length && !sentPlayers.length) {
     container.innerHTML = `
