@@ -13,6 +13,7 @@ import {
   INITIAL_STORIES,
   INITIAL_PLAYERS
 } from './data.js';
+import { api } from './api.js';
 
 class Store {
   constructor() {
@@ -21,6 +22,7 @@ class Store {
     this.listeners = new Map();
     this.accounts = this._loadAccounts();
     this.state = this._loadState();
+    this._initDatabaseSync();
   }
 
   _getDemoAccounts() {
@@ -232,10 +234,41 @@ class Store {
     };
   }
 
+  async _initDatabaseSync() {
+    try {
+      const serverState = await api.fetchAll();
+      if (serverState) {
+        let changed = false;
+        ['posts', 'squads', 'tournaments', 'chatMessages', 'stories', 'reviews'].forEach(key => {
+          if (Array.isArray(serverState[key]) && serverState[key].length > 0) {
+            this.state[key] = serverState[key];
+            changed = true;
+          }
+        });
+        if (Array.isArray(serverState.users) && serverState.users.length > 0) {
+          this.accounts = serverState.users;
+          this._saveAccounts();
+        }
+        if (changed) {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+          }
+          this._notify('sync', this.state);
+        }
+      }
+    } catch (e) {
+      console.log('[Store] Working in Local Database mode');
+    }
+  }
+
   _saveState() {
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+      }
+      // Asynchronously sync state to Backend Database if connected
+      if (typeof window !== 'undefined' && api) {
+        api.syncState(this.state).catch(() => {});
       }
     } catch (e) {
       console.warn('Failed to save state to localStorage', e);

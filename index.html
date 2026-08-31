@@ -1163,12 +1163,12 @@
 
       <div class="modal-body data-modal-body">
         <!-- Storage Status Banner -->
-        <div class="data-status-banner">
-          <div class="data-status-icon">🟢</div>
+        <div class="data-status-banner" id="database-status-banner">
+          <div class="data-status-icon" id="db-status-dot">🟢</div>
           <div>
-            <div class="data-status-title">ระบบบันทึกข้อมูลอัตโนมัติ (LocalStorage Active)</div>
+            <div class="data-status-title" id="db-status-title">ระบบฐานข้อมูล Persistent Database (Connected)</div>
             <div class="data-status-desc" id="data-status-details">
-              ข้อมูลทั้งหมด (โพสต์, ปาร์ตี้หาตี้, บัญชีผู้ใช้, แชท, รีวิว, เลเวล XP) ถูกบันทึกลงในเบราว์เซอร์อย่างถาวร
+              เชื่อมต่อฐานข้อมูล Server Database (data/nexus_db.json) พร้อมระบบความปลอดภัย Local Storage Auto-Sync
             </div>
           </div>
         </div>
@@ -1182,10 +1182,23 @@
         <div class="data-actions-list">
           <div class="data-action-item">
             <div class="data-action-info">
+              <span class="data-action-icon">🔄</span>
+              <div>
+                <strong style="color: #00e5ff; font-size: 0.95rem;">ซิงค์กับฐานข้อมูลหลัก (Sync Database)</strong>
+                <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 2px;">ส่งข้อมูลล่าสุดในเครื่องขึ้นบันทึกบนฐานข้อมูลเซิร์ฟเวอร์แบบ Real-time</p>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-sync-database">
+              🔄 ซิงค์ตอนนี้
+            </button>
+          </div>
+
+          <div class="data-action-item">
+            <div class="data-action-info">
               <span class="data-action-icon">💾</span>
               <div>
                 <strong style="color: #fff; font-size: 0.95rem;">บันทึกข้อมูลทันที (Save Now)</strong>
-                <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 2px;">บันทึกสถานะและการเปลี่ยนแปลงล่าสุดทั้งหมดลงเครื่องทันที 100%</p>
+                <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 2px;">บันทึกสถานะและการเปลี่ยนแปลงล่าสุดทั้งหมดลงเครื่องและฐานข้อมูลทันที 100%</p>
               </div>
             </div>
             <button class="btn btn-primary btn-sm" id="btn-manual-save-now">
@@ -1222,10 +1235,10 @@
 
           <div class="data-action-item danger-action">
             <div class="data-action-info">
-              <span class="data-action-icon">🔄</span>
+              <span class="data-action-icon">⚠️</span>
               <div>
-                <strong style="color: #ff4655; font-size: 0.95rem;">รีเซ็ตข้อมูลเริ่มต้น (Reset Demo Data)</strong>
-                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;">ล้างข้อมูลที่สร้างใหม่และโหลดข้อมูลโปรเพลเยอร์ตัวอย่างเริ่มต้น</p>
+                <strong style="color: #ff4655; font-size: 0.95rem;">รีเซ็ตข้อมูลเริ่มต้น (Reset Database)</strong>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;">ล้างข้อมูลและรีเซ็ตฐานข้อมูลเป็นค่าเริ่มต้นของระบบ</p>
               </div>
             </div>
             <button class="btn btn-secondary btn-sm" id="btn-reset-demo-data" style="border-color: rgba(255, 70, 85, 0.4); color: #ff4655;">
