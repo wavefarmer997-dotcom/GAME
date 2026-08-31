@@ -190,7 +190,20 @@ function getThemeTitle(th) {
   return names[th] || th;
 }
 
+function syncNavigationUI(tab) {
+  if (!tab) return;
+  // Sync desktop header buttons
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  // Sync mobile bottom dock buttons
+  document.querySelectorAll('.mobile-dock-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+}
+
 function initNavigation() {
+  // Desktop Header Nav Buttons
   const navBtns = document.querySelectorAll('.nav-btn');
   navBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -199,10 +212,29 @@ function initNavigation() {
       if (!tab) return;
 
       sound.play('tab');
-      navBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
+      syncNavigationUI(tab);
       store.setTab(tab);
+    });
+  });
+
+  // Mobile Bottom Navigation Dock Buttons
+  const mobileDockBtns = document.querySelectorAll('.mobile-dock-btn');
+  mobileDockBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tab = btn.dataset.tab;
+      if (!tab) return;
+
+      sound.play('tab');
+      syncNavigationUI(tab);
+      store.setTab(tab);
+
+      // Smooth scroll to top of content on mobile & tablet
+      const contentElem = document.querySelector('.main-content-area');
+      if (contentElem && window.innerWidth <= 1100) {
+        const topPos = contentElem.getBoundingClientRect().top + window.pageYOffset - 70;
+        window.scrollTo({ top: Math.max(0, topPos), behavior: 'smooth' });
+      }
     });
   });
 
@@ -215,16 +247,21 @@ function initNavigation() {
     });
   }
 
-  // Quick CTA in Hero
+  // Quick CTA in Hero & Footer
   document.querySelectorAll('.btn-hero-action').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
       const targetTab = btn.dataset.targetTab;
       if (targetTab) {
         sound.play('tab');
-        document.querySelectorAll('.nav-btn').forEach(b => {
-          b.classList.toggle('active', b.dataset.tab === targetTab);
-        });
+        syncNavigationUI(targetTab);
         store.setTab(targetTab);
+
+        const contentElem = document.querySelector('.main-content-area');
+        if (contentElem) {
+          const topPos = contentElem.getBoundingClientRect().top + window.pageYOffset - 80;
+          window.scrollTo({ top: Math.max(0, topPos), behavior: 'smooth' });
+        }
       }
     });
   });
@@ -279,6 +316,7 @@ function initFilters() {
 
 function renderCurrentTab() {
   const tab = store.state.activeTab;
+  syncNavigationUI(tab);
   const feedContainer = document.getElementById('tab-content-feed');
   const lfgContainer = document.getElementById('tab-content-lfg');
   const gamesContainer = document.getElementById('tab-content-games');
@@ -298,14 +336,14 @@ function renderCurrentTab() {
   if (tab === 'feed') {
     if (mainGridLayout) mainGridLayout.classList.remove('no-sidebars');
     if (feedContainer) feedContainer.style.display = 'block';
-    if (filterBar) filterBar.style.display = 'block';
-    if (leftSidebar) leftSidebar.style.display = 'block';
+    if (filterBar) filterBar.style.display = '';
+    if (leftSidebar) leftSidebar.style.display = '';
     renderForumFeed(document.getElementById('posts-stream-container'));
   } else if (tab === 'lfg') {
     if (mainGridLayout) mainGridLayout.classList.remove('no-sidebars');
     if (lfgContainer) lfgContainer.style.display = 'block';
-    if (filterBar) filterBar.style.display = 'block';
-    if (leftSidebar) leftSidebar.style.display = 'block';
+    if (filterBar) filterBar.style.display = '';
+    if (leftSidebar) leftSidebar.style.display = '';
     renderLFG(document.getElementById('squads-stream-container'));
   } else if (tab === 'games') {
     if (mainGridLayout) mainGridLayout.classList.add('no-sidebars');

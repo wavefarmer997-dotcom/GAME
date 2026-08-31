@@ -140,7 +140,7 @@ export function renderChatLounge(container) {
 
       <!-- Main Area: Either Voice Room Stage or Text Chat Stream -->
       <div class="chat-main-area" id="chat-main-viewport">
-        ${currentViewMode === 'voice' && isVoiceConnected ? renderVoiceRoomHTML() : renderTextChatHTML(filteredMessages)}
+        ${currentViewMode === 'voice' && isVoiceConnected ? renderVoiceRoomHTML() : renderTextChatHTML(filteredMessages, allTextChannels, allVoiceChannels)}
       </div>
     </div>
   `;
@@ -159,8 +159,22 @@ export function renderChatLounge(container) {
   });
 }
 
-function renderTextChatHTML(filteredMessages) {
+function renderTextChatHTML(filteredMessages, allTextChannels = [], allVoiceChannels = []) {
   return `
+    <!-- Mobile Horizontal Channels Bar -->
+    <div class="chat-mobile-channels-bar">
+      ${allTextChannels.map(ch => `
+        <button type="button" class="chat-mobile-chip ${currentViewMode === 'text' && currentTextChannel === ch.id ? 'active' : ''}" data-type="text" data-channel="${ch.id}">
+          <span>${ch.icon} #${ch.name}</span>
+        </button>
+      `).join('')}
+      ${allVoiceChannels.map(vc => `
+        <button type="button" class="chat-mobile-chip voice-chip ${voiceManager.state.connected && voiceManager.state.channelId === vc.id ? 'active' : ''}" data-type="voice" data-vc-id="${vc.id}">
+          <span>🔊 ${vc.name}</span>
+        </button>
+      `).join('')}
+    </div>
+
     <div class="chat-header-bar">
       <div class="chat-header-title">
         <span>💬 # ${getChannelTitle(currentTextChannel)}</span>
@@ -368,8 +382,8 @@ function bindLoungeEvents(container) {
     scrollBox.scrollTop = scrollBox.scrollHeight;
   }
 
-  // Switch Text Channels
-  container.querySelectorAll('.channel-btn[data-type="text"]').forEach(btn => {
+  // Switch Text Channels (Desktop & Mobile)
+  container.querySelectorAll('.channel-btn[data-type="text"], .chat-mobile-chip[data-type="text"]').forEach(btn => {
     btn.addEventListener('click', () => {
       currentTextChannel = btn.dataset.channel;
       currentViewMode = 'text';
@@ -378,8 +392,8 @@ function bindLoungeEvents(container) {
     });
   });
 
-  // Switch Voice Channels
-  container.querySelectorAll('.channel-btn[data-type="voice"]').forEach(btn => {
+  // Switch Voice Channels (Desktop & Mobile)
+  container.querySelectorAll('.channel-btn[data-type="voice"], .chat-mobile-chip[data-type="voice"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const vcId = btn.dataset.vcId;
       await voiceManager.connect(vcId);

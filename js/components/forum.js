@@ -240,7 +240,7 @@ function renderPostMedia(post) {
     return `
       <div class="post-media-container video-container">
         <div class="media-type-badge">🎬 คลิปไฮไลท์</div>
-        <video src="${post.video || post.image}" controls preload="metadata" playsinline class="post-media-video" poster="${post.image || ''}"></video>
+        <video src="${post.video || post.image}" controls preload="metadata" playsinline class="post-media-video" poster="${post.image || ''}" onerror="this.outerHTML='<img src=\\'${post.image || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80'}\\' alt=\\'${post.title}\\' class=\\'post-media-image\\'>'"></video>
       </div>
     `;
   }

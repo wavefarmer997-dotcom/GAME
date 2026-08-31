@@ -198,7 +198,7 @@ function renderStorySlide() {
     <div class="story-media-stage" id="story-media-stage">
       ${story.type === 'video' ? `
         <div class="story-video-wrapper">
-          <video src="${story.mediaUrl}" autoplay ${isMuted ? 'muted' : ''} playsinline disablePictureInPicture preload="auto" class="story-video-player" id="story-active-video"></video>
+          <video src="${story.mediaUrl}" autoplay ${isMuted ? 'muted' : ''} playsinline disablePictureInPicture preload="auto" class="story-video-player" id="story-active-video" onerror="this.outerHTML='<img src=\\'${story.userAvatar}\\' class=\\'story-image-element\\'>'"></video>
           
           <!-- Story Video Volume Controller -->
           <div class="story-video-volume-bar" id="story-video-volume-bar">

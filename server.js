@@ -20,6 +20,12 @@ const server = http.createServer((req, res) => {
   let reqPath = req.url.split('?')[0];
   if (reqPath === '/') reqPath = '/index.html';
   
+  if (reqPath === '/favicon.ico') {
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+    res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎮</text></svg>');
+    return;
+  }
+  
   const filePath = path.join(__dirname, reqPath);
   
   fs.readFile(filePath, (err, data) => {
