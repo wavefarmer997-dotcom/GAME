@@ -820,13 +820,13 @@ class Store {
     this.emit('user:updated', this.state.user);
   }
 
-  // --- Social & Friends System ---
+  // --- Social & Friends System (Strictly Registered User Accounts) ---
   getPlayers() {
     this.accounts = this._loadAccounts();
     const currentUserId = this.state.user?.id;
     const currentUserName = (this.state.user?.name || '').toLowerCase();
 
-    // Registered users mapped to Player format
+    // Registered members mapped to Player format
     const registeredPlayers = this.accounts
       .filter(acc => acc.id !== currentUserId && (acc.name || '').toLowerCase() !== currentUserName)
       .map(acc => {
@@ -856,18 +856,7 @@ class Store {
         };
       });
 
-    // Existing mock players from INITIAL_PLAYERS
-    const existingIds = new Set(registeredPlayers.map(p => p.id));
-    const existingNames = new Set(registeredPlayers.map(p => p.name.toLowerCase()));
-    existingNames.add(currentUserName);
-    if (currentUserId) existingIds.add(currentUserId);
-
-    const basePlayers = (INITIAL_PLAYERS || []).filter(p => 
-      !existingIds.has(p.id) && 
-      !existingNames.has((p.name || '').toLowerCase())
-    );
-
-    return [...registeredPlayers, ...basePlayers];
+    return registeredPlayers;
   }
 
   getPlayerById(id) {
@@ -1126,7 +1115,7 @@ class Store {
   addFriendDirect(query) {
     const cleanQuery = (query || '').trim();
     if (!cleanQuery) {
-      return { success: false, message: 'กรุณากรอกชื่อผู้เล่น, อีเมล หรือ GamerTag (เช่น #1337 หรือ Alice#1234)' };
+      return { success: false, message: 'กรุณากรอกชื่อผู้ใช้, อีเมล หรือ GamerTag เช่น #5544 หรือ Agent_NeonX' };
     }
 
     const q = cleanQuery.toLowerCase();
@@ -1137,6 +1126,7 @@ class Store {
       user && (
         user.name.toLowerCase() === q ||
         (user.gamerTag && user.gamerTag.toLowerCase() === q) ||
+        (user.gamerTag && user.gamerTag.replace('#', '').toLowerCase() === q.replace('#', '')) ||
         `${user.name}${user.gamerTag}`.toLowerCase() === q.replace(/\s+/g, '') ||
         (user.email && user.email.toLowerCase() === q)
       )
@@ -1144,67 +1134,33 @@ class Store {
       return { success: false, message: 'คุณไม่สามารถเพิ่มตัวเองเป็นเพื่อนได้ 😄' };
     }
 
-    // 1. Search in all registered accounts first
+    // Search strictly in registered accounts
     this.accounts = this._loadAccounts();
     const targetAcc = this.accounts.find(acc => {
       if (acc.id === user?.id) return false;
-      const matchName = (acc.name || '').toLowerCase() === q;
-      const matchTag = (acc.gamerTag || '').toLowerCase() === q;
-      const matchFull = `${acc.name}${acc.gamerTag}`.toLowerCase() === q.replace(/\s+/g, '');
-      const matchEmail = (acc.email || '').toLowerCase() === q;
-      const partialName = q.length >= 2 && (acc.name || '').toLowerCase().includes(q);
-      return matchName || matchTag || matchFull || matchEmail || partialName;
+      const accName = (acc.name || '').toLowerCase();
+      const accTag = (acc.gamerTag || '').toLowerCase();
+      const accTagRaw = accTag.replace('#', '');
+      const accEmail = (acc.email || '').toLowerCase();
+      const rawQ = q.replace('#', '');
+
+      const matchNameExact = accName === q;
+      const matchTagExact = accTag === q || accTagRaw === rawQ;
+      const matchFullTag = `${accName}${accTag}` === q.replace(/\s+/g, '');
+      const matchEmailExact = accEmail === q;
+      const matchNamePartial = q.length >= 2 && accName.includes(q);
+
+      return matchNameExact || matchTagExact || matchFullTag || matchEmailExact || matchNamePartial;
     });
 
     if (targetAcc) {
       return this.sendFriendRequest(targetAcc.id);
     }
 
-    // 2. Search in mock/base players
-    const allPlayers = this.getPlayers();
-    let player = allPlayers.find(p =>
-      p.name.toLowerCase() === q ||
-      p.gamerTag.toLowerCase() === q ||
-      `${p.name}${p.gamerTag}`.toLowerCase() === q.replace(/\s+/g, '')
-    );
-
-    if (!player && cleanQuery.length >= 3) {
-      player = allPlayers.find(p =>
-        p.name.toLowerCase().includes(q) ||
-        p.gamerTag.toLowerCase().includes(q)
-      );
-    }
-
-    if (player) {
-      return this.sendFriendRequest(player.id);
-    }
-
-    // 3. If still not found, create a dynamic gamer profile and send request
-    const tag = cleanQuery.startsWith('#') ? cleanQuery : `#${Math.floor(1000 + Math.random() * 9000)}`;
-    const name = cleanQuery.startsWith('#') ? `Gamer_${cleanQuery.replace('#', '')}` : cleanQuery.split('#')[0];
-    const newPlayer = {
-      id: `p-dyn-${Date.now()}`,
-      name: name,
-      gamerTag: tag,
-      avatar: `https://images.unsplash.com/photo-${1535713875000 + Math.floor(Math.random() * 500)}?auto=format&fit=crop&w=200&q=80`,
-      banner: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
-      level: Math.floor(15 + Math.random() * 40),
-      rank: '🌟 Ascendant / Diamond',
-      rankTitle: '🎯 Pro Challenger',
-      status: 'online',
-      statusText: '🟢 กำลังออนไลน์ในระบบ NEXUS',
-      primaryGame: 'Valorant',
-      favoriteGames: ['Valorant', 'Genshin Impact'],
-      bio: 'เกมเมอร์สายจริงจัง ค้นพบผ่าน GamerTag Direct Add 🚀',
-      mutualFriends: 1,
-      followersCount: Math.floor(20 + Math.random() * 100)
+    return {
+      success: false,
+      message: `❌ ไม่พบบัญชีผู้ใช้ "${cleanQuery}" ในระบบ (ระบบจะค้นหาเฉพาะบัญชีสมาชิกที่ลงทะเบียนไว้เท่านั้น)`
     };
-
-    if (!this.state.players) this.state.players = [];
-    this.state.players.unshift(newPlayer);
-    this._saveState();
-
-    return this.sendFriendRequest(newPlayer.id);
   }
 
   toggleFollow(playerId) {
