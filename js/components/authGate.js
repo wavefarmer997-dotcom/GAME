@@ -14,6 +14,8 @@ export function initAuthGate() {
   const tabBtns = document.querySelectorAll('.auth-tab-btn');
   const logoutBtn = document.getElementById('btn-header-logout');
   const guestBtn = document.getElementById('btn-guest-quick-login');
+  const btnSubmitRegister = document.getElementById('btn-submit-register');
+  const btnSubmitLogin = document.getElementById('btn-submit-login');
   
   // Login password elements
   const loginPwdToggle = document.getElementById('btn-toggle-login-pwd');
@@ -55,8 +57,9 @@ export function initAuthGate() {
 
   // 2. Tab switching: Login vs Register
   tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      sound.play('tab');
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      sound.play('click');
       tabBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
@@ -64,18 +67,19 @@ export function initAuthGate() {
       if (targetTab === 'login') {
         if (loginForm) loginForm.style.display = 'block';
         if (regForm) regForm.style.display = 'none';
-        document.getElementById('login-identifier')?.focus();
+        setTimeout(() => document.getElementById('login-identifier')?.focus(), 50);
       } else {
         if (loginForm) loginForm.style.display = 'none';
         if (regForm) regForm.style.display = 'block';
-        document.getElementById('reg-name')?.focus();
+        setTimeout(() => document.getElementById('reg-name')?.focus(), 50);
       }
     });
   });
 
   // 3. Password visibility toggles
   if (loginPwdToggle && loginPwdInput) {
-    loginPwdToggle.addEventListener('click', () => {
+    loginPwdToggle.addEventListener('click', (e) => {
+      e.preventDefault();
       const isPwd = loginPwdInput.type === 'password';
       loginPwdInput.type = isPwd ? 'text' : 'password';
       loginPwdToggle.textContent = isPwd ? '🙈' : '👁️';
@@ -83,7 +87,8 @@ export function initAuthGate() {
   }
 
   if (regPwdToggle && regPwdInput) {
-    regPwdToggle.addEventListener('click', () => {
+    regPwdToggle.addEventListener('click', (e) => {
+      e.preventDefault();
       const isPwd = regPwdInput.type === 'password';
       regPwdInput.type = isPwd ? 'text' : 'password';
       regPwdToggle.textContent = isPwd ? '🙈' : '👁️';
@@ -110,23 +115,24 @@ export function initAuthGate() {
 
       if (score <= 2) {
         pwdStrengthIndicator.style.width = '35%';
-        pwdStrengthIndicator.style.background = 'var(--accent-red, #ff4655)';
+        pwdStrengthIndicator.style.background = 'var(--accent, #ff0055)';
         pwdStrengthLabel.innerHTML = 'ระดับความปลอดภัย: <span style="color: #ff4655;">ง่าย (พอใช้)</span>';
       } else if (score <= 3) {
         pwdStrengthIndicator.style.width = '70%';
-        pwdStrengthIndicator.style.background = 'var(--accent-gold, #ffaa00)';
-        pwdStrengthLabel.innerHTML = 'ระดับความปลอดภัย: <span style="color: #ffaa00;">ปานกลาง (ปลอดภัย)</span>';
+        pwdStrengthIndicator.style.background = 'var(--warning, #f59e0b)';
+        pwdStrengthLabel.innerHTML = 'ระดับความปลอดภัย: <span style="color: #f59e0b;">ปานกลาง (ปลอดภัย)</span>';
       } else {
         pwdStrengthIndicator.style.width = '100%';
-        pwdStrengthIndicator.style.background = 'var(--accent-green, #00ff88)';
-        pwdStrengthLabel.innerHTML = 'ระดับความปลอดภัย: <span style="color: #00ff88;">แข็งแกร่งมาก (ยอดเยี่ยม)</span>';
+        pwdStrengthIndicator.style.background = 'var(--success, #10b981)';
+        pwdStrengthLabel.innerHTML = 'ระดับความปลอดภัย: <span style="color: #10b981;">แข็งแกร่งมาก (ยอดเยี่ยม)</span>';
       }
     });
   }
 
   // 5. Random Gamer Tag Button
   if (btnRandomTag && regTagInput) {
-    btnRandomTag.addEventListener('click', () => {
+    btnRandomTag.addEventListener('click', (e) => {
+      e.preventDefault();
       sound.play('click');
       const randomTag = '#' + Math.floor(1000 + Math.random() * 9000);
       regTagInput.value = randomTag;
@@ -136,13 +142,11 @@ export function initAuthGate() {
   // 6. Favorite Games Tag Picker
   document.querySelectorAll('#reg-games-selector .game-checkbox-pill').forEach(pill => {
     pill.addEventListener('click', (e) => {
-      e.preventDefault();
-      sound.play('click');
       const checkbox = pill.querySelector('input[type="checkbox"]');
-      if (checkbox) {
+      if (checkbox && e.target !== checkbox) {
         checkbox.checked = !checkbox.checked;
-        pill.classList.toggle('active', checkbox.checked);
       }
+      pill.classList.toggle('active', checkbox?.checked);
     });
   });
 
@@ -185,99 +189,139 @@ export function initAuthGate() {
     });
   }
 
-  // 10. Handle Login Submission
+  // 10. Handle Login Execution
+  function executeLogin() {
+    const identifier = document.getElementById('login-identifier')?.value.trim();
+    const password = document.getElementById('login-password')?.value;
+    const remember = document.getElementById('login-remember')?.checked;
+
+    if (!identifier) {
+      sound.play('click');
+      showToast('⚠️ กรุณากรอกชื่อผู้ใช้หรืออีเมล', 'warning');
+      document.getElementById('login-identifier')?.focus();
+      return;
+    }
+
+    if (!password) {
+      sound.play('click');
+      showToast('⚠️ กรุณากรอกรหัสผ่าน', 'warning');
+      document.getElementById('login-password')?.focus();
+      return;
+    }
+
+    const res = store.login({ identifier, password, rememberMe: remember });
+    if (res.success) {
+      sound.play('success');
+      triggerConfetti(window.innerWidth / 2, window.innerHeight * 0.4, 40);
+      showToast(res.message, 'success');
+      loginForm?.reset();
+    } else {
+      sound.play('click');
+      showToast(`⚠️ ${res.message}`, 'danger');
+    }
+  }
+
   if (loginForm) {
     loginForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const identifier = document.getElementById('login-identifier')?.value.trim();
-      const password = document.getElementById('login-password')?.value;
-      const remember = document.getElementById('login-remember')?.checked;
-
-      if (!identifier) {
-        showToast('⚠️ กรุณากรอกชื่อผู้ใช้หรืออีเมล', 'warning');
-        return;
-      }
-
-      if (!password) {
-        showToast('⚠️ กรุณากรอกรหัสผ่าน', 'warning');
-        return;
-      }
-
-      const res = store.login({ identifier, password, rememberMe: remember });
-      if (res.success) {
-        sound.play('success');
-        triggerConfetti(window.innerWidth / 2, window.innerHeight * 0.4, 40);
-        showToast(res.message, 'success');
-        loginForm.reset();
-      } else {
-        sound.play('click');
-        showToast(`⚠️ ${res.message}`, 'danger');
-      }
+      executeLogin();
     });
   }
 
-  // 11. Handle Register Submission
+  if (btnSubmitLogin) {
+    btnSubmitLogin.addEventListener('click', (e) => {
+      e.preventDefault();
+      executeLogin();
+    });
+  }
+
+  // 11. Handle Register Execution
+  function executeRegister() {
+    const nameInput = document.getElementById('reg-name');
+    const emailInput = document.getElementById('reg-email');
+    const pwdInput = document.getElementById('reg-password');
+    const pwdConfirmInput = document.getElementById('reg-password-confirm');
+    const tagInput = document.getElementById('reg-tag');
+
+    const name = nameInput?.value.trim();
+    const gamerTag = tagInput?.value.trim() || ('#' + Math.floor(1000 + Math.random() * 9000));
+    const email = emailInput?.value.trim();
+    const password = pwdInput?.value;
+    const passwordConfirm = pwdConfirmInput?.value;
+    const avatar = selectedAvatarInput?.value || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=200&q=80';
+
+    // Extract checked favorite games
+    const selectedGames = [];
+    document.querySelectorAll('#reg-games-selector input[type="checkbox"]:checked').forEach(cb => {
+      selectedGames.push(cb.value);
+    });
+
+    if (!name) {
+      sound.play('click');
+      showToast('⚠️ กรุณากรอกชื่อเกมเมอร์ของคุณ', 'warning');
+      nameInput?.focus();
+      return;
+    }
+
+    if (name.length < 2) {
+      sound.play('click');
+      showToast('⚠️ ชื่อเกมเมอร์ต้องมีความยาวอย่างน้อย 2 ตัวอักษร', 'warning');
+      nameInput?.focus();
+      return;
+    }
+
+    if (!email || !email.includes('@')) {
+      sound.play('click');
+      showToast('⚠️ กรุณากรอกที่อยู่อีเมลที่ถูกต้อง (ตัวอย่าง: player@gmail.com)', 'warning');
+      emailInput?.focus();
+      return;
+    }
+
+    if (!password || password.length < 4) {
+      sound.play('click');
+      showToast('⚠️ รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร', 'warning');
+      pwdInput?.focus();
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      sound.play('click');
+      showToast('⚠️ รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง', 'danger');
+      pwdConfirmInput?.focus();
+      return;
+    }
+
+    const res = store.register({
+      name,
+      gamerTag,
+      email,
+      password,
+      favoriteGames: selectedGames.length ? selectedGames : ['Valorant', 'Genshin Impact'],
+      avatar
+    });
+
+    if (res.success) {
+      sound.play('levelUp');
+      triggerConfetti(window.innerWidth / 2, window.innerHeight * 0.4, 50);
+      showToast(res.message, 'level');
+      regForm?.reset();
+    } else {
+      sound.play('click');
+      showToast(`⚠️ ${res.message}`, 'danger');
+    }
+  }
+
   if (regForm) {
     regForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const name = document.getElementById('reg-name')?.value.trim();
-      const gamerTag = document.getElementById('reg-tag')?.value.trim();
-      const email = document.getElementById('reg-email')?.value.trim();
-      const password = document.getElementById('reg-password')?.value;
-      const passwordConfirm = document.getElementById('reg-password-confirm')?.value;
-      const avatar = selectedAvatarInput?.value;
+      executeRegister();
+    });
+  }
 
-      // Extract checked favorite games
-      const selectedGames = [];
-      document.querySelectorAll('#reg-games-selector input[type="checkbox"]:checked').forEach(cb => {
-        selectedGames.push(cb.value);
-      });
-
-      if (!name) {
-        showToast('⚠️ กรุณากรอกชื่อเกมเมอร์ของคุณ', 'warning');
-        return;
-      }
-
-      if (name.length < 2) {
-        showToast('⚠️ ชื่อเกมเมอร์ต้องมีความยาวอย่างน้อย 2 ตัวอักษร', 'warning');
-        return;
-      }
-
-      if (!email || !email.includes('@')) {
-        showToast('⚠️ กรุณากรอกที่อยู่อีเมลที่ถูกต้อง', 'warning');
-        return;
-      }
-
-      if (!password || password.length < 4) {
-        showToast('⚠️ รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร', 'warning');
-        return;
-      }
-
-      if (password !== passwordConfirm) {
-        sound.play('click');
-        showToast('⚠️ รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง', 'danger');
-        document.getElementById('reg-password-confirm')?.focus();
-        return;
-      }
-
-      const res = store.register({
-        name,
-        gamerTag,
-        email,
-        password,
-        favoriteGames: selectedGames,
-        avatar
-      });
-
-      if (res.success) {
-        sound.play('levelUp');
-        triggerConfetti(window.innerWidth / 2, window.innerHeight * 0.4, 50);
-        showToast(res.message, 'level');
-        regForm.reset();
-      } else {
-        sound.play('click');
-        showToast(`⚠️ ${res.message}`, 'danger');
-      }
+  if (btnSubmitRegister) {
+    btnSubmitRegister.addEventListener('click', (e) => {
+      e.preventDefault();
+      executeRegister();
     });
   }
 

@@ -410,6 +410,11 @@ class Store {
     this.accounts.push(newUser);
     this._saveAccounts(this.accounts);
 
+    // Sync with backend database if online
+    if (typeof window !== 'undefined' && api) {
+      api.register(newUser).catch(() => {});
+    }
+
     // Set active session
     this.state.user = newUser;
     this.state.isAuthenticated = true;
