@@ -8414,10 +8414,10 @@ body.auth-locked {
       <!-- Action Buttons & User Profile -->
       <div class="header-actions">
         <!-- Supabase Cloud Sync Status Button -->
-        <button class="action-icon-btn btn-header-supabase" id="btn-header-supabase" title="⚡ เชื่อมต่อ Supabase Cloud Database (Real-time Sync)">
-          <span class="supabase-btn-content">
-            <span class="supabase-bolt">⚡</span>
-            <span class="header-supabase-dot status-dot-grey" id="header-supabase-dot"></span>
+        <button class="action-icon-btn btn-header-supabase" id="btn-header-supabase" onclick="document.getElementById('modal-supabase-settings')?.classList.add('active');" title="⚡ เชื่อมต่อ Supabase Cloud Database (Real-time Sync)">
+          <span class="supabase-btn-content" style="pointer-events: none;">
+            <span class="supabase-bolt" style="pointer-events: none;">⚡</span>
+            <span class="header-supabase-dot status-dot-grey" id="header-supabase-dot" style="pointer-events: none;"></span>
           </span>
         </button>
 
@@ -9597,7 +9597,7 @@ body.auth-locked {
 
   <!-- Modal: Supabase Cloud Database Settings & Synchronization -->
   <div class="modal-overlay" id="modal-supabase-settings">
-    <div class="modal-content supabase-modal-card">
+    <div class="modal-card supabase-modal-card">
       <div class="modal-header">
         <div class="supabase-modal-title-wrap">
           <div class="supabase-logo-icon">⚡</div>
@@ -9606,7 +9606,7 @@ body.auth-locked {
             <p class="modal-subtitle" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">ระบบฐานข้อมูล Cloud Database แบบ Real-time เชื่อมต่อข้อมูลข้ามอุปกรณ์ 100%</p>
           </div>
         </div>
-        <button class="modal-close-btn" id="btn-close-supabase-modal">&times;</button>
+        <button class="modal-close-btn" id="btn-close-supabase-modal" onclick="document.getElementById('modal-supabase-settings')?.classList.remove('active');">&times;</button>
       </div>
 
       <div class="modal-body supabase-modal-body">
