@@ -414,7 +414,7 @@ function renderProfileModal() {
         modal.classList.remove('active');
         store.setTab('chat');
         setTimeout(() => {
-          const chatInput = document.getElementById('in-chat-text');
+          const chatInput = document.getElementById('chat-msg-input') || document.getElementById('in-chat-text');
           if (chatInput) {
             chatInput.value = `@${profileUser.name} `;
             chatInput.focus();

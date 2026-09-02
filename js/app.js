@@ -20,59 +20,52 @@ import { addCustomTextChannel, setActiveRoom } from './components/chatLounge.js'
 import { initAuthGate } from './components/authGate.js';
 import { initDataManager } from './components/dataManager.js';
 
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Initialize Themes & Sound
-  initThemeAndAudio();
+function startApp() {
+  const steps = [
+    { name: 'Theme and Audio', fn: () => initThemeAndAudio() },
+    { name: 'Auth Gate', fn: () => { initAuthGate(); updateHeaderUserInfo(store.state.user); } },
+    { name: 'Data Manager', fn: () => initDataManager() },
+    { name: 'Hero Canvas and FX', fn: () => { initHeroCanvas(); initGlobalEffects(); } },
+    { name: 'Navigation', fn: () => initNavigation() },
+    { name: 'Filters', fn: () => initFilters() },
+    { name: 'Modals and Media', fn: () => { initModals(); initPostMediaUploader(); initStoryCreator(); } },
+    { name: 'Profile and Friends', fn: () => { setupProfileModal(); initFriendsHub(); } },
+    { name: 'Initial Render', fn: () => {
+      renderCurrentTab();
+      const storyBarEl = document.getElementById('community-stories-bar');
+      if (storyBarEl) renderStoryBar(storyBarEl);
+      initCard3DTilt();
+    }}
+  ];
 
-  // 2. Initialize Authentication Gate (Login & Register)
-  initAuthGate();
-  updateHeaderUserInfo(store.state.user);
+  steps.forEach(step => {
+    try {
+      step.fn();
+    } catch (err) {
+      console.warn(`[NEXUS Init] Warning in ${step.name}:`, err);
+    }
+  });
 
-  // 3. Initialize Data Management & Auto-Save
-  initDataManager();
-
-  // 4. Initialize Hero Canvas & Visual FX Engine
-  initHeroCanvas();
-  initGlobalEffects();
-
-  // 5. Setup Navigation & Tabs
-  initNavigation();
-
-  // 6. Setup Category & Game Filters
-  initFilters();
-
-  // 7. Setup Modals & Media Uploaders
-  initModals();
-  initPostMediaUploader();
-  initStoryCreator();
-
-  // 8. Setup Profile & Friends Hub
-  setupProfileModal();
-  initFriendsHub();
-
-  // 8. Initial View Render & Story Bar
-  renderCurrentTab();
-  renderStoryBar(document.getElementById('community-stories-bar'));
-  initCard3DTilt();
-
-  // 9. Subscribe to Store Changes
-  store.subscribe('*', (event) => {
+  // Subscribe to Store Changes
+  store.subscribe('*', () => {
     renderCurrentTab();
     setTimeout(initCard3DTilt, 100);
   });
 
   store.subscribe('stories:updated', () => {
-    renderStoryBar(document.getElementById('community-stories-bar'));
+    const bar = document.getElementById('community-stories-bar');
+    if (bar) renderStoryBar(bar);
     setTimeout(initCard3DTilt, 100);
   });
 
   store.subscribe('user:updated', (user) => {
     updateHeaderUserInfo(user || store.state.user);
-    renderStoryBar(document.getElementById('community-stories-bar'));
+    const bar = document.getElementById('community-stories-bar');
+    if (bar) renderStoryBar(bar);
     setTimeout(initCard3DTilt, 100);
   });
 
-  store.subscribe('auth:changed', (isAuth) => {
+  store.subscribe('auth:changed', () => {
     updateHeaderUserInfo(store.state.user);
     renderCurrentTab();
   });
@@ -81,7 +74,14 @@ document.addEventListener('DOMContentLoaded', () => {
     triggerLevelUpCelebration(user);
     showToast(`🎉 ยินดีด้วย! คุณเลเวลอัปสู่ Lv.${user.level} แล้ว!`, 'level');
   });
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startApp);
+} else {
+  // DOM is already parsed (e.g. deferred module scripts)
+  startApp();
+}
 
 function updateHeaderUserInfo(user) {
   if (!user) return;

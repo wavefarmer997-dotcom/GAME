@@ -449,7 +449,7 @@ function renderMyFriendsTab(container) {
       document.getElementById('modal-friends-hub')?.classList.remove('active');
       store.setTab('chat');
       setTimeout(() => {
-        const chatInput = document.getElementById('in-chat-text');
+        const chatInput = document.getElementById('chat-msg-input') || document.getElementById('in-chat-text');
         if (chatInput) {
           chatInput.value = `@${name} `;
           chatInput.focus();

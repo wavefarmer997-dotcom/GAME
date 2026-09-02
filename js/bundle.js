@@ -989,12 +989,25 @@ var init_api = __esm({
       }
       async _initEndpoint() {
         if (typeof window === "undefined") return;
-        const origin = window.location.origin;
-        const isNodeServer = window.location.port === "3000";
-        if (isNodeServer) {
-          this.baseUrl = origin;
-          await this.checkHealth();
-        } else {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 1200);
+          const res = await fetch("/api/status", {
+            method: "GET",
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            this.baseUrl = "";
+            this.isOnline = true;
+            const data = await res.json();
+            this._notifyStatus(true, data);
+            return;
+          }
+        } catch (e) {
+        }
+        const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        if (isLocalhost && window.location.protocol === "http:") {
           try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 800);
@@ -1013,10 +1026,10 @@ var init_api = __esm({
             }
           } catch (e) {
           }
-          this.baseUrl = "";
-          this.isOnline = false;
-          this._notifyStatus(false, null);
         }
+        this.baseUrl = "";
+        this.isOnline = false;
+        this._notifyStatus(false, null);
       }
       async checkHealth() {
         if (!this.baseUrl) {
@@ -4025,7 +4038,7 @@ function renderProfileModal() {
         modal.classList.remove("active");
         store.setTab("chat");
         setTimeout(() => {
-          const chatInput = document.getElementById("in-chat-text");
+          const chatInput = document.getElementById("chat-msg-input") || document.getElementById("in-chat-text");
           if (chatInput) {
             chatInput.value = `@${profileUser.name} `;
             chatInput.focus();
@@ -6488,7 +6501,7 @@ function renderMyFriendsTab(container) {
       document.getElementById("modal-friends-hub")?.classList.remove("active");
       store.setTab("chat");
       setTimeout(() => {
-        const chatInput = document.getElementById("in-chat-text");
+        const chatInput = document.getElementById("chat-msg-input") || document.getElementById("in-chat-text");
         if (chatInput) {
           chatInput.value = `@${name} `;
           chatInput.focus();
@@ -7192,37 +7205,59 @@ function renderDataStats() {
 }
 
 // js/app.js
-document.addEventListener("DOMContentLoaded", () => {
-  initThemeAndAudio();
-  initAuthGate();
-  updateHeaderUserInfo(store.state.user);
-  initDataManager();
-  initHeroCanvas();
-  initGlobalEffects();
-  initNavigation();
-  initFilters();
-  initModals();
-  initPostMediaUploader();
-  initStoryCreator();
-  setupProfileModal();
-  initFriendsHub();
-  renderCurrentTab();
-  renderStoryBar(document.getElementById("community-stories-bar"));
-  initCard3DTilt();
-  store.subscribe("*", (event) => {
+function startApp() {
+  const steps = [
+    { name: "Theme and Audio", fn: () => initThemeAndAudio() },
+    { name: "Auth Gate", fn: () => {
+      initAuthGate();
+      updateHeaderUserInfo(store.state.user);
+    } },
+    { name: "Data Manager", fn: () => initDataManager() },
+    { name: "Hero Canvas and FX", fn: () => {
+      initHeroCanvas();
+      initGlobalEffects();
+    } },
+    { name: "Navigation", fn: () => initNavigation() },
+    { name: "Filters", fn: () => initFilters() },
+    { name: "Modals and Media", fn: () => {
+      initModals();
+      initPostMediaUploader();
+      initStoryCreator();
+    } },
+    { name: "Profile and Friends", fn: () => {
+      setupProfileModal();
+      initFriendsHub();
+    } },
+    { name: "Initial Render", fn: () => {
+      renderCurrentTab();
+      const storyBarEl = document.getElementById("community-stories-bar");
+      if (storyBarEl) renderStoryBar(storyBarEl);
+      initCard3DTilt();
+    } }
+  ];
+  steps.forEach((step) => {
+    try {
+      step.fn();
+    } catch (err) {
+      console.warn(`[NEXUS Init] Warning in ${step.name}:`, err);
+    }
+  });
+  store.subscribe("*", () => {
     renderCurrentTab();
     setTimeout(initCard3DTilt, 100);
   });
   store.subscribe("stories:updated", () => {
-    renderStoryBar(document.getElementById("community-stories-bar"));
+    const bar = document.getElementById("community-stories-bar");
+    if (bar) renderStoryBar(bar);
     setTimeout(initCard3DTilt, 100);
   });
   store.subscribe("user:updated", (user) => {
     updateHeaderUserInfo(user || store.state.user);
-    renderStoryBar(document.getElementById("community-stories-bar"));
+    const bar = document.getElementById("community-stories-bar");
+    if (bar) renderStoryBar(bar);
     setTimeout(initCard3DTilt, 100);
   });
-  store.subscribe("auth:changed", (isAuth) => {
+  store.subscribe("auth:changed", () => {
     updateHeaderUserInfo(store.state.user);
     renderCurrentTab();
   });
@@ -7230,7 +7265,12 @@ document.addEventListener("DOMContentLoaded", () => {
     triggerLevelUpCelebration(user);
     showToast5(`\u{1F389} \u0E22\u0E34\u0E19\u0E14\u0E35\u0E14\u0E49\u0E27\u0E22! \u0E04\u0E38\u0E13\u0E40\u0E25\u0E40\u0E27\u0E25\u0E2D\u0E31\u0E1B\u0E2A\u0E39\u0E48 Lv.${user.level} \u0E41\u0E25\u0E49\u0E27!`, "level");
   });
-});
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", startApp);
+} else {
+  startApp();
+}
 function updateHeaderUserInfo(user) {
   if (!user) return;
   const avatarEl = document.getElementById("header-user-avatar");

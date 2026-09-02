@@ -16,16 +16,29 @@ class NexusAPI {
   async _initEndpoint() {
     if (typeof window === 'undefined') return;
 
-    const origin = window.location.origin;
-    const isNodeServer = window.location.port === '3000';
+    // 1. First, check relative same-origin /api/status (Works for Node server, Vercel Serverless, etc.)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const res = await fetch('/api/status', {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        this.baseUrl = '';
+        this.isOnline = true;
+        const data = await res.json();
+        this._notifyStatus(true, data);
+        return;
+      }
+    } catch (e) {
+      // Same-origin /api/status not reachable
+    }
 
-    // If currently running directly on node server :3000
-    if (isNodeServer) {
-      this.baseUrl = origin;
-      await this.checkHealth();
-    } else {
-      // If running on Live Server :5500, GitHub Pages, or other static hosts,
-      // silently check if localhost:3000 backend is running without throwing console errors
+    // 2. If running on local dev server (e.g. Live Server on http://localhost:5500), check localhost:3000
+    const isLocalhost = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocalhost && window.location.protocol === 'http:') {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 800);
@@ -43,13 +56,13 @@ class NexusAPI {
           return;
         }
       } catch (e) {
-        // Backend not on localhost:3000 -> Work in 100% LocalStorage Database mode silently
+        // Backend not on localhost:3000 -> work in LocalStorage mode
       }
-
-      this.baseUrl = '';
-      this.isOnline = false;
-      this._notifyStatus(false, null);
     }
+
+    this.baseUrl = '';
+    this.isOnline = false;
+    this._notifyStatus(false, null);
   }
 
   async checkHealth() {
