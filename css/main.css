@@ -774,29 +774,31 @@ button {
 }
 
 .mobile-dock-inner {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
   align-items: center;
-  justify-content: space-around;
-  gap: 4px;
+  width: 100%;
 }
 
 .mobile-dock-btn {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 6px 2px;
+  gap: 2px;
+  padding: 6px 1px;
   border-radius: var(--radius-md, 12px);
   color: var(--text-secondary);
-  font-size: 0.72rem;
+  font-size: clamp(0.58rem, 2vw, 0.7rem);
   font-weight: 600;
   transition: all var(--transition-fast);
   position: relative;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  min-height: 48px;
+  min-width: 0;
 }
 
 .mobile-dock-btn:active {
@@ -808,23 +810,27 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: clamp(24px, 6vw, 30px);
+  height: clamp(24px, 6vw, 30px);
   border-radius: 8px;
   transition: all 0.2s ease;
 }
 
 .dock-icon {
-  font-size: 1.25rem;
+  font-size: clamp(1.1rem, 3.8vw, 1.3rem);
   line-height: 1;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dock-label {
-  font-size: 0.68rem;
-  letter-spacing: 0.2px;
+  font-size: clamp(0.56rem, 1.9vw, 0.68rem);
+  letter-spacing: -0.2px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
   transition: color 0.2s ease;
+  line-height: 1.1;
 }
 
 .mobile-dock-btn.active {
@@ -837,7 +843,7 @@ button {
 }
 
 .mobile-dock-btn.active .dock-icon {
-  transform: scale(1.15) translateY(-1px);
+  transform: scale(1.12) translateY(-1px);
 }
 
 .mobile-dock-btn.active .dock-label {
@@ -849,12 +855,12 @@ button {
 .dock-badge-pill {
   position: absolute;
   top: -4px;
-  right: -8px;
+  right: -6px;
   background: var(--accent, #ff0055);
   color: #fff;
-  font-size: 0.55rem;
+  font-size: 0.52rem;
   font-weight: 800;
-  padding: 1px 4px;
+  padding: 1px 3px;
   border-radius: 4px;
   line-height: 1.2;
   box-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
@@ -865,8 +871,8 @@ button {
   position: absolute;
   top: -2px;
   right: -2px;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   background: #00ff88;
   border-radius: 50%;
   box-shadow: 0 0 8px #00ff88;
@@ -874,31 +880,39 @@ button {
 }
 
 /* ==========================================================================
-   Responsive Utilities & Breakpoints
+   Responsive Utilities & Comprehensive Cross-Device Breakpoints
    ========================================================================== */
 
-@media (max-width: 1260px) {
+/* 1. Ultra-Wide Screens (>= 1600px) */
+@media (min-width: 1600px) {
   .container {
-    padding: 0 16px;
+    max-width: 1600px;
+    padding: 0 32px;
+  }
+}
+
+/* 2. Large Laptops / Desktops (<= 1280px) */
+@media (max-width: 1280px) {
+  .container {
+    padding: 0 20px;
   }
   .nav-links {
     gap: 4px;
   }
   .nav-btn {
-    padding: 6px 8px;
-    font-size: 0.82rem;
-    gap: 4px;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    gap: 5px;
   }
   .header-actions {
-    gap: 6px;
+    gap: 8px;
   }
 }
 
+/* 3. Tablets Landscape & Compact Laptops (<= 1100px) */
 @media (max-width: 1100px) {
   body {
-    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 8px));
   }
 
   .nav-links {
@@ -910,6 +924,7 @@ button {
   }
 }
 
+/* 4. Tablets Portrait & Phablets (<= 960px) */
 @media (max-width: 960px) {
   .site-header {
     height: auto;
@@ -921,27 +936,19 @@ button {
   }
 
   .logo {
-    font-size: 1.2rem;
+    font-size: 1.25rem;
     gap: 8px;
   }
 
   .logo-icon {
-    width: 32px;
-    height: 32px;
-    font-size: 1.05rem;
-    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    font-size: 1.1rem;
+    border-radius: 9px;
   }
 
   .logo-badge {
-    display: none; /* Keep header compact */
-  }
-
-  .nav-links {
-    display: none !important; /* Replaced by Mobile Bottom Dock */
-  }
-
-  .mobile-bottom-dock {
-    display: block !important; /* Show dock */
+    display: none;
   }
 
   .header-actions {
@@ -966,20 +973,21 @@ button {
   }
 
   .user-name-label {
-    display: none !important; /* Save space on mobile */
+    display: none !important; /* Save space on tablet/mobile header */
   }
 
   .user-lvl-pill {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
   }
 
   .volume-dropdown-popover {
-    right: -50px;
-    width: 260px;
+    right: 0;
+    width: min(280px, calc(100vw - 24px));
+    transform-origin: top right;
   }
 
   .toast-container {
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(78px + env(safe-area-inset-bottom, 8px));
     right: 12px;
     left: 12px;
   }
@@ -990,7 +998,7 @@ button {
   }
 
   .footer-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 28px;
   }
 
@@ -1001,24 +1009,49 @@ button {
   }
 }
 
+/* 5. Mobile Devices & Small Tablets (<= 768px) */
 @media (max-width: 768px) {
-  .footer-grid {
-    grid-template-columns: 1fr;
-    gap: 28px;
-  }
-}
-
-@media (max-width: 480px) {
   .container {
-    padding: 0 12px;
+    padding: 0 14px;
   }
 
   .header-inner {
-    height: 56px;
+    height: 58px;
   }
 
-  .logo-text {
-    font-size: 1.05rem;
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .footer-bottom > div:last-child {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+}
+
+/* 6. Compact Smartphones (<= 480px) */
+@media (max-width: 480px) {
+  .container {
+    padding: 0 10px;
+  }
+
+  .header-inner {
+    height: 54px;
+    gap: 6px;
+  }
+
+  .logo {
+    font-size: 1.1rem;
+    gap: 6px;
+  }
+
+  .logo-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 0.95rem;
+    border-radius: 8px;
   }
 
   .header-actions {
@@ -1026,32 +1059,118 @@ button {
   }
 
   .action-icon-btn {
-    width: 34px;
-    height: 34px;
-    font-size: 0.9rem;
+    width: 33px;
+    height: 33px;
+    font-size: 0.88rem;
+    border-radius: 8px;
   }
 
-  .btn-header-data,
-  .btn-header-logout {
-    font-size: 0.85rem;
+  .user-avatar-wrap {
+    width: 28px;
+    height: 28px;
+  }
+
+  .user-lvl-pill {
+    font-size: 0.62rem;
   }
 
   .mobile-bottom-dock {
-    width: calc(100% - 12px);
-    bottom: calc(6px + env(safe-area-inset-bottom, 0px));
-    padding: 4px 6px;
+    width: calc(100% - 10px);
+    bottom: calc(5px + env(safe-area-inset-bottom, 0px));
+    padding: 4px;
   }
 
   .mobile-dock-btn {
-    padding: 4px 1px;
-    gap: 2px;
+    padding: 4px 0;
+    min-height: 44px;
+  }
+}
+
+/* 7. Extra Small Smartphones (<= 360px, e.g., iPhone SE, Galaxy Fold cover) */
+@media (max-width: 360px) {
+  .container {
+    padding: 0 8px;
+  }
+
+  .header-inner {
+    height: 50px;
+    gap: 4px;
+  }
+
+  .logo-text {
+    font-size: 0.95rem;
+  }
+
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 0.85rem;
+  }
+
+  .header-actions {
+    gap: 3px;
+  }
+
+  .action-icon-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 0.82rem;
+    border-radius: 7px;
+  }
+
+  .user-profile-btn {
+    padding: 2px 5px 2px 2px;
+  }
+
+  .user-avatar-wrap {
+    width: 26px;
+    height: 26px;
+  }
+
+  .user-lvl-pill {
+    display: none; /* Hide level text on sub-360px screens to fit all action icons cleanly */
+  }
+
+  .mobile-bottom-dock {
+    width: calc(100% - 6px);
+    padding: 3px 2px;
   }
 
   .dock-icon {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
   }
 
   .dock-label {
-    font-size: 0.62rem;
+    font-size: 0.52rem;
+  }
+}
+
+/* 8. Landscape Orientation on Mobile Devices (Height <= 500px) */
+@media (max-height: 500px) and (orientation: landscape) {
+  .site-header {
+    position: relative; /* Avoid taking up 30% of screen in landscape */
+  }
+
+  .header-inner {
+    height: 46px;
+  }
+
+  body {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobile-bottom-dock {
+    bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+    padding: 3px 6px;
+  }
+
+  .mobile-dock-btn {
+    min-height: 38px;
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  .dock-label {
+    font-size: 0.6rem;
   }
 }

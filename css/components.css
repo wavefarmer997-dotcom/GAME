@@ -3388,7 +3388,11 @@
   box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
 }
 
-/* 1. Tablet Breakpoint (<= 1024px) */
+/* ==========================================================================
+   Comprehensive Responsive Design Engine across All Devices & Screen Sizes
+   ========================================================================== */
+
+/* 1. Large Tablets & Small Laptops (<= 1024px) */
 @media (max-width: 1024px) {
   .main-content-area {
     padding: 16px 0 40px;
@@ -3421,7 +3425,8 @@
 
   .chat-lounge-container {
     grid-template-columns: 200px 1fr;
-    height: 600px;
+    height: calc(100dvh - 200px);
+    min-height: 520px;
   }
 
   .squads-grid {
@@ -3430,52 +3435,57 @@
   }
 
   .modal-card {
-    max-width: 95vw;
+    max-width: min(94vw, 700px);
+    max-height: min(90dvh, 88vh);
   }
 
   .modal-friends-hub-card {
-    width: 95vw;
-    height: 85vh;
+    width: min(95vw, 900px);
+    height: min(88dvh, 800px);
   }
 }
 
-/* 2. Mobile Landscape & Standard Smartphones (<= 768px) */
+/* 2. Tablets Portrait, Foldables & Large Smartphones (<= 768px) */
 @media (max-width: 768px) {
   /* Hero Section */
   .hero-section {
-    padding: 30px 0 25px;
+    padding: 24px 0 20px;
   }
 
   .hero-badge {
-    font-size: 0.75rem;
-    padding: 4px 12px;
+    font-size: 0.72rem;
+    padding: 4px 10px;
   }
 
   .hero-title {
-    font-size: clamp(1.6rem, 6vw, 2.3rem);
+    font-size: clamp(1.4rem, 5.5vw, 2.2rem);
+    line-height: 1.25;
   }
 
   .hero-subtitle {
-    font-size: 0.95rem;
-    padding: 0 10px;
+    font-size: 0.9rem;
+    padding: 0 4px;
+    margin-bottom: 16px;
   }
 
   .hero-cta-group {
     width: 100%;
     flex-direction: column;
+    align-items: stretch;
     gap: 10px;
+    max-width: 380px;
+    margin: 0 auto;
   }
 
   .hero-cta-group .btn {
     width: 100%;
-    max-width: 320px;
   }
 
   .hero-stats-bar {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    padding: 14px 18px;
+    gap: 10px;
+    padding: 12px 14px;
     border-radius: var(--radius-lg);
     width: 100%;
   }
@@ -3490,17 +3500,17 @@
   }
 
   .stat-val {
-    font-size: 1.05rem;
+    font-size: 1rem;
   }
 
   .stat-lbl {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
   }
 
-  /* Filter Bar */
+  /* Filter & Search Bar */
   .filter-bar-container {
-    top: 60px;
-    padding: 10px 0;
+    top: 58px;
+    padding: 8px 0;
   }
 
   .filter-bar-inner {
@@ -3514,37 +3524,78 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 4px;
+    gap: 6px;
   }
 
   .filter-pill {
-    padding: 6px 14px;
-    font-size: 0.82rem;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    flex-shrink: 0;
   }
 
   .search-input-wrap {
     width: 100%;
   }
 
+  /* Game Spotlight & Game Hub */
+  .game-spotlight-hero {
+    padding: 20px 18px;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: auto;
+  }
+
+  .spotlight-title {
+    font-size: 1.5rem;
+  }
+
+  .spotlight-actions {
+    width: 100%;
+  }
+
+  .spotlight-actions .btn {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .game-hub-toolbar {
+    padding: 12px;
+  }
+
+  .game-hub-search-box {
+    min-width: 100%;
+  }
+
   /* Chat Lounge & Voice Rooms */
   .chat-lounge-container {
     grid-template-columns: 1fr;
-    height: calc(100vh - 220px);
-    min-height: 520px;
+    height: calc(100dvh - 175px);
+    min-height: 480px;
     border-radius: var(--radius-md);
   }
 
   .chat-channels-sidebar {
-    display: none; /* Replaced by Mobile Channel Bar */
+    display: none;
   }
 
   .chat-mobile-channels-bar {
     display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .chat-mobile-chip {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    font-size: 0.78rem;
   }
 
   .chat-header-bar {
-    padding: 10px 14px;
+    padding: 8px 12px;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
 
   .chat-header-right-actions {
@@ -3553,27 +3604,31 @@
   }
 
   .chat-messages-scroll {
-    padding: 12px;
-    gap: 12px;
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .chat-message-bubble {
+    max-width: 88%;
   }
 
   .chat-input-bar {
-    padding: 10px 12px;
-    gap: 8px;
+    padding: 8px 10px;
+    gap: 6px;
   }
 
   .voice-room-container {
-    padding: 14px;
+    padding: 12px;
   }
 
   .voice-members-grid {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr));
+    gap: 8px;
   }
 
   .voice-controls-bar {
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     justify-content: center;
   }
 
@@ -3581,7 +3636,7 @@
   .squads-header-bar {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
+    gap: 10px;
   }
 
   .squads-header-bar .btn {
@@ -3590,53 +3645,55 @@
 
   .squads-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
   }
 
   .squad-card {
-    padding: 16px;
+    padding: 14px;
   }
 
-  /* Tournaments */
+  /* Tournaments & Brackets */
   .tour-banner-img,
   .tour-banner-overlay {
-    height: 160px;
+    height: 140px;
   }
 
   .tour-card-body {
-    padding: 16px;
-    margin-top: -40px;
+    padding: 14px;
+    margin-top: -30px;
   }
 
   .tour-title {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
   }
 
   .prize-pool-badge {
-    font-size: 1rem;
-    padding: 6px 12px;
+    font-size: 0.95rem;
+    padding: 5px 10px;
   }
 
   .tour-details-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
   }
 
   .bracket-section {
-    padding: 14px;
+    padding: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .bracket-rounds-wrap {
-    gap: 20px;
-    min-width: 580px;
+    gap: 16px;
+    min-width: 520px;
   }
 
   /* Stories Viewer */
   .story-viewer-frame {
     width: 100vw;
-    height: 100vh;
-    max-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     border-radius: 0;
     border: none;
   }
@@ -3647,42 +3704,43 @@
   }
 
   .profile-header-meta {
-    padding: 0 14px 14px;
-    gap: 12px;
+    padding: 0 12px 12px;
+    gap: 10px;
     flex-direction: column;
     align-items: flex-start;
-    margin-top: -40px;
+    margin-top: -36px;
   }
 
   .profile-avatar-lg {
-    width: 76px;
-    height: 76px;
+    width: 70px;
+    height: 70px;
   }
 
   .profile-name-title {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
   }
 
   .profile-stats-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
-    padding: 0 14px 14px;
+    padding: 0 12px 12px;
   }
 
   .profile-tabs-nav {
-    padding: 0 14px;
+    padding: 0 12px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     gap: 4px;
   }
 
   .profile-tab-btn {
-    padding: 8px 12px;
-    font-size: 0.8rem;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    flex-shrink: 0;
   }
 
   .profile-tab-content {
-    padding: 14px;
+    padding: 12px;
   }
 
   .profile-header-actions {
@@ -3691,64 +3749,82 @@
   }
 
   /* Modals General */
+  .modal-overlay {
+    padding: 10px;
+    align-items: center;
+  }
+
   .modal-card {
     max-width: 100%;
-    margin: 8px;
+    width: 100%;
+    margin: 0;
     border-radius: var(--radius-lg);
+    max-height: min(92dvh, calc(100vh - 30px));
+    display: flex;
+    flex-direction: column;
   }
 
   .modal-header {
-    padding: 14px 16px;
+    padding: 12px 14px;
+    flex-shrink: 0;
   }
 
   .modal-title {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
   }
 
   .modal-body {
-    padding: 14px 16px;
+    padding: 12px 14px;
+    overflow-y: auto;
+    flex: 1;
   }
 
   .modal-footer {
-    padding: 12px 16px;
+    padding: 10px 14px;
     flex-wrap: wrap;
     gap: 8px;
+    flex-shrink: 0;
   }
 
   .modal-footer .btn {
     flex: 1;
-    min-width: 120px;
+    min-width: 110px;
   }
 
-  .form-row-2 {
-    grid-template-columns: 1fr;
-    gap: 10px;
+  .form-row-2,
+  div[style*="grid-template-columns: 1fr 1fr"],
+  div[style*="grid-template-columns: repeat(4, 1fr)"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
   }
 
   /* Friends Hub Modal */
   .friends-hub-header {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
 
   .friends-hub-tabs-bar {
-    padding: 8px 12px;
-    gap: 6px;
+    padding: 6px 10px;
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .friends-tab-btn {
-    padding: 6px 10px;
-    font-size: 0.75rem;
+    padding: 5px 8px;
+    font-size: 0.72rem;
+    flex-shrink: 0;
   }
 
   .friends-hub-body-scroll {
-    padding: 14px 12px;
+    padding: 12px 10px;
   }
 
   .hub-direct-add-card {
-    padding: 12px;
+    padding: 10px;
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
   }
 
   .direct-add-form {
@@ -3760,69 +3836,69 @@
   .hub-search-bar-wrap {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
   }
 
   .hub-players-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
   }
 
   /* Auth Gate Portal */
   .auth-gate-wrapper {
-    max-height: 98vh;
-    padding: 0;
+    max-height: 96dvh;
+    padding: 8px;
   }
 
   .auth-gate-card {
-    padding: 20px 16px;
+    padding: 16px 14px;
     border-radius: var(--radius-lg);
   }
 
   .auth-logo-text {
-    font-size: 1.4rem;
+    font-size: 1.3rem;
   }
 
   .auth-demo-chips {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 6px;
   }
 
   /* Forum Post Cards */
   .post-card {
-    padding: 16px 14px;
+    padding: 14px 12px;
   }
 
   .post-header {
-    gap: 10px;
+    gap: 8px;
   }
 
   .post-author-avatar {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
   }
 
   .post-media-container {
     border-radius: var(--radius-md);
-    max-height: 400px;
+    max-height: 360px;
   }
 
   .post-actions-bar {
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
   }
 
   .btn-post-action {
-    padding: 6px 10px;
-    font-size: 0.8rem;
+    padding: 5px 8px;
+    font-size: 0.78rem;
   }
 }
 
 /* 3. Small Smartphones (<= 480px) */
 @media (max-width: 480px) {
   .chat-lounge-container {
-    height: calc(100vh - 190px);
-    min-height: 460px;
+    height: calc(100dvh - 155px);
+    min-height: 420px;
   }
 
   .auth-avatar-selector-grid {
@@ -3855,17 +3931,95 @@
   }
 
   .story-item-bubble {
-    gap: 4px;
+    gap: 3px;
   }
 
   .story-avatar-wrapper {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
   }
 
   .story-user-label {
-    font-size: 0.68rem;
-    max-width: 60px;
+    font-size: 0.65rem;
+    max-width: 54px;
+  }
+
+  .create-post-quick-bar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .quick-post-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .quick-post-btn-fake {
+    font-size: 0.78rem;
+  }
+
+  .file-dropzone {
+    padding: 14px 10px;
+  }
+
+  .dropzone-content p {
+    font-size: 0.8rem;
+  }
+}
+
+/* 4. Extra Small Smartphones (<= 360px) */
+@media (max-width: 360px) {
+  .hero-title {
+    font-size: 1.25rem;
+  }
+
+  .hero-stats-bar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .modal-title {
+    font-size: 0.95rem;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 8px 10px;
+  }
+
+  .chat-message-bubble {
+    max-width: 94%;
+    font-size: 0.82rem;
+  }
+
+  .chat-input-bar {
+    padding: 6px;
+  }
+}
+
+/* 5. Mobile Devices in Landscape Orientation (Max Height <= 500px) */
+@media (max-height: 500px) and (orientation: landscape) {
+  .modal-card {
+    max-height: 94dvh;
+  }
+
+  .modal-body {
+    max-height: 60dvh;
+  }
+
+  .chat-lounge-container {
+    height: calc(100dvh - 90px);
+    min-height: 280px;
+  }
+
+  .auth-gate-wrapper {
+    max-height: 96dvh;
+    overflow-y: auto;
+  }
+
+  .story-viewer-frame {
+    height: 100dvh;
   }
 }
 
