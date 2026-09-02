@@ -15,5 +15,8 @@
     "community"
   ],
   "author": "NEXUS TH",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "isomorphic-git": "^1.41.9"
+  }
 }

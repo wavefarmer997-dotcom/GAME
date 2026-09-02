@@ -76,6 +76,17 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Supabase Server Environment Config Discovery
+    if (route === '/api/config/supabase' && method === 'GET') {
+      const url = process.env.SUPABASE_URL || '';
+      const key = process.env.SUPABASE_ANON_KEY || '';
+      return sendJSON(res, 200, {
+        configured: Boolean(url && key),
+        url: url,
+        key: key
+      });
+    }
+
     // 2. Collections
     if (route === '/api/posts' && method === 'GET') {
       return sendJSON(res, 200, db.getCollection('posts'));

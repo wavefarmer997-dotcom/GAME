@@ -6650,6 +6650,320 @@ body.auth-locked {
   }
 }
 
+/* ==========================================================================
+   Supabase Cloud Database Settings & Synchronization UI
+   ========================================================================== */
+
+.btn-header-supabase {
+  position: relative;
+  border-color: rgba(0, 229, 255, 0.25);
+  background: rgba(0, 229, 255, 0.06);
+  color: #00e5ff;
+}
+
+.btn-header-supabase:hover {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: rgba(0, 229, 255, 0.5);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+}
+
+.supabase-btn-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.supabase-bolt {
+  font-size: 1.15rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(0, 229, 255, 0.6));
+}
+
+.header-supabase-dot {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bg-deep);
+}
+
+.status-dot-green {
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseGreenDot 2s infinite;
+}
+
+.status-dot-amber {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+  animation: pulseDot 1.5s infinite;
+}
+
+.status-dot-grey {
+  background-color: #64748b;
+}
+
+/* Supabase Modal Card */
+.supabase-modal-card {
+  max-width: 660px;
+  width: 92%;
+  background: rgba(13, 17, 26, 0.96);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 229, 255, 0.12);
+}
+
+.supabase-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.supabase-logo-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(168, 85, 247, 0.2));
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.25);
+}
+
+.supabase-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-height: 75vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Status Banner & Badge */
+.supabase-status-container {
+  width: 100%;
+}
+
+.supabase-badge {
+  padding: 10px 16px;
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.88rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.supabase-badge.connected {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+}
+
+.supabase-badge.connecting {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.supabase-badge.offline {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+/* Supabase Form */
+.supabase-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: rgba(18, 24, 38, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-lg, 14px);
+  padding: 16px;
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-icon .input-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 1rem;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.input-with-icon .form-input {
+  padding-left: 38px;
+  padding-right: 42px;
+  width: 100%;
+}
+
+.btn-toggle-key-visibility {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 1rem;
+  border-radius: 6px;
+  transition: opacity 0.15s ease;
+}
+
+.btn-toggle-key-visibility:hover {
+  color: var(--text-primary);
+}
+
+.supabase-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.btn-danger-outline {
+  background: rgba(244, 63, 94, 0.06);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #f43f5e;
+}
+
+.btn-danger-outline:hover {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.6);
+  color: #fff;
+}
+
+/* Tools Section */
+.supabase-tools-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.supabase-section-heading {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-highlight);
+  margin-bottom: 2px;
+}
+
+.supabase-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.supabase-tool-card {
+  background: rgba(22, 28, 44, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md, 12px);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+}
+
+.supabase-tool-card:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+  background: rgba(26, 36, 56, 0.85);
+  transform: translateY(-2px);
+}
+
+.tool-card-icon {
+  font-size: 1.4rem;
+}
+
+.tool-card-content strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #fff;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.tool-card-content p {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.supabase-tool-card .btn {
+  width: 100%;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+
+/* Guide Box */
+.supabase-guide-box {
+  background: rgba(168, 85, 247, 0.06);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  border-radius: var(--radius-md, 12px);
+  padding: 14px 16px;
+  font-size: 0.84rem;
+}
+
+.guide-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary-hover);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.guide-steps-list {
+  padding-left: 20px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.guide-steps-list li {
+  margin-bottom: 4px;
+}
+
+.guide-steps-list a {
+  color: #00e5ff;
+  text-decoration: underline;
+}
+
+.guide-steps-list code {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  color: #f43f5e;
+}
+
+@media (max-width: 680px) {
+  .supabase-tools-grid {
+    grid-template-columns: 1fr;
+  }
+  .supabase-action-buttons {
+    flex-direction: column;
+  }
+  .supabase-action-buttons .btn {
+    width: 100%;
+  }
+}
+
 
 
 

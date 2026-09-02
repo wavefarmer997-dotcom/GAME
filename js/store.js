@@ -14,6 +14,7 @@ import {
   INITIAL_PLAYERS
 } from './data.js';
 import { api } from './api.js';
+import { supabase } from './supabase.js';
 
 class Store {
   constructor() {
@@ -235,26 +236,78 @@ class Store {
   }
 
   async _initDatabaseSync() {
+    // 1. Supabase Cloud Database Real-time Sync
     try {
-      if (!api || !api.isOnline) return;
-      const serverState = await api.fetchAll();
-      if (serverState) {
-        let changed = false;
-        ['posts', 'squads', 'tournaments', 'chatMessages', 'stories', 'reviews'].forEach(key => {
-          if (Array.isArray(serverState[key]) && serverState[key].length > 0) {
-            this.state[key] = serverState[key];
-            changed = true;
+      if (supabase && supabase.isConfigured()) {
+        const cloudState = await supabase.fetchAllState();
+        if (cloudState) {
+          let changed = false;
+          ['posts', 'squads', 'tournaments', 'chatMessages', 'stories', 'reviews'].forEach(key => {
+            if (Array.isArray(cloudState[key]) && cloudState[key].length > 0) {
+              this.state[key] = cloudState[key];
+              changed = true;
+            }
+          });
+          if (Array.isArray(cloudState.users) && cloudState.users.length > 0) {
+            this.accounts = cloudState.users;
+            this._saveAccounts();
+          }
+          if (changed) {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+            }
+            this.emit('sync', this.state);
+          }
+        }
+
+        // Start real-time background sync polling
+        supabase.startRealtimePolling((freshCloudState) => {
+          if (freshCloudState) {
+            let hasNew = false;
+            ['posts', 'squads', 'chatMessages', 'stories', 'reviews'].forEach(key => {
+              if (Array.isArray(freshCloudState[key]) && freshCloudState[key].length > 0) {
+                // Check if length or top item changed
+                if (JSON.stringify(this.state[key]) !== JSON.stringify(freshCloudState[key])) {
+                  this.state[key] = freshCloudState[key];
+                  hasNew = true;
+                }
+              }
+            });
+            if (hasNew) {
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+              }
+              this.emit('sync', this.state);
+            }
           }
         });
-        if (Array.isArray(serverState.users) && serverState.users.length > 0) {
-          this.accounts = serverState.users;
-          this._saveAccounts();
-        }
-        if (changed) {
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+      }
+    } catch (e) {
+      console.warn('[Store] Supabase sync initial failed:', e);
+    }
+
+    // 2. Node Backend REST API fallback (if local server running)
+    try {
+      if (api && api.isOnline) {
+        const serverState = await api.fetchAll();
+        if (serverState) {
+          let changed = false;
+          ['posts', 'squads', 'tournaments', 'chatMessages', 'stories', 'reviews'].forEach(key => {
+            if (Array.isArray(serverState[key]) && serverState[key].length > 0) {
+              this.state[key] = serverState[key];
+              changed = true;
+            }
+          });
+          if (Array.isArray(serverState.users) && serverState.users.length > 0) {
+            this.accounts = serverState.users;
+            this._saveAccounts();
           }
-          this.emit('sync', this.state);
+          if (changed) {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+            }
+            this.emit('sync', this.state);
+          }
         }
       }
     } catch (e) {
@@ -270,6 +323,10 @@ class Store {
       // Asynchronously sync state to Backend Database only if connected
       if (typeof window !== 'undefined' && api && api.isOnline) {
         api.syncState(this.state).catch(() => {});
+      }
+      // Asynchronously sync user profile to Supabase if connected
+      if (typeof window !== 'undefined' && supabase && supabase.isConnected && this.state.user) {
+        supabase.syncUser(this.state.user).catch(() => {});
       }
     } catch (e) {
       console.warn('Failed to save state to localStorage', e);
@@ -293,6 +350,9 @@ class Store {
       this.accounts.push({ ...this.state.user });
     }
     this._saveAccounts();
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected && this.state.user) {
+      supabase.syncUser(this.state.user).catch(() => {});
+    }
   }
 
   // Authentication
@@ -511,6 +571,9 @@ class Store {
     this.state.user.stats.postsCount = (this.state.user.stats.postsCount || 0) + 1;
     this.addXP(50); // Reward for posting
     this.emit('posts:updated', this.state.posts);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncPost(newPost).catch(() => {});
+    }
     return newPost;
   }
 
@@ -538,6 +601,9 @@ class Store {
     }
 
     this.emit('posts:updated', this.state.posts);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncPost(post).catch(() => {});
+    }
   }
 
   addComment(postId, commentText) {
@@ -563,6 +629,9 @@ class Store {
     this.addXP(15);
 
     this.emit('posts:updated', this.state.posts);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncPost(post).catch(() => {});
+    }
     return newComment;
   }
 
@@ -611,6 +680,9 @@ class Store {
     this.state.squads.unshift(newSquad);
     this.addXP(30);
     this.emit('squads:updated', this.state.squads);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncSquad(newSquad).catch(() => {});
+    }
     return newSquad;
   }
 
@@ -640,6 +712,9 @@ class Store {
     this.state.user.stats.squadsJoined = (this.state.user.stats.squadsJoined || 0) + 1;
     this.addXP(25);
     this.emit('squads:updated', this.state.squads);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncSquad(squad).catch(() => {});
+    }
     return { success: true, message: 'เข้าร่วมตี้สำเร็จ! เตรียมพร้อมลุย' };
   }
 
@@ -652,6 +727,9 @@ class Store {
       squad.status = 'recruiting';
     }
     this.emit('squads:updated', this.state.squads);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncSquad(squad).catch(() => {});
+    }
   }
 
   // Chat Actions
@@ -674,6 +752,10 @@ class Store {
     this.state.chatMessages.push(newMsg);
     this.addXP(2);
     this.emit('chat:updated', this.state.chatMessages);
+
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncChatMessage(newMsg).catch(() => {});
+    }
 
     // Trigger occasional lively automated response
     this._simulateChatReplies(channel, text.trim());
@@ -704,6 +786,9 @@ class Store {
       };
       this.state.chatMessages.push(botMsg);
       this.emit('chat:updated', this.state.chatMessages);
+      if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+        supabase.syncChatMessage(botMsg).catch(() => {});
+      }
     }, 1400);
   }
 
@@ -720,6 +805,9 @@ class Store {
     this.state.user.stats.tournamentsEntered = (this.state.user.stats.tournamentsEntered || 0) + 1;
     this.addXP(100);
     this.emit('tournaments:updated', this.state.tournaments);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncTournament(tour).catch(() => {});
+    }
     return { success: true, message: `ลงทะเบียนทีม "${teamName}" เข้าร่วมสำเร็จ!` };
   }
 
@@ -747,6 +835,9 @@ class Store {
     this.state.reviews.unshift(newRev);
     this.addXP(40);
     this.emit('reviews:updated', this.state.reviews);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncReview(newRev).catch(() => {});
+    }
     return newRev;
   }
 
@@ -773,12 +864,18 @@ class Store {
     this.state.stories.unshift(newStory);
     this.addXP(35); // Reward for story
     this.emit('stories:updated', this.state.stories);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.syncStory(newStory).catch(() => {});
+    }
     return newStory;
   }
 
   deleteStory(storyId) {
     this.state.stories = this.state.stories.filter(s => s.id !== storyId);
     this.emit('stories:updated', this.state.stories);
+    if (typeof window !== 'undefined' && supabase && supabase.isConnected) {
+      supabase.deleteItem('nexus_stories', storyId).catch(() => {});
+    }
   }
 
   reactStory(storyId, emoji) {

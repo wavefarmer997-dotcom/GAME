@@ -1203,12 +1203,521 @@ var init_api = __esm({
   }
 });
 
+// js/supabase.js
+var SupabaseConnector, supabase;
+var init_supabase = __esm({
+  "js/supabase.js"() {
+    SupabaseConnector = class {
+      constructor() {
+        this.STORAGE_KEY = "NEXUS_SUPABASE_CONFIG_V2";
+        this.config = this._loadConfig();
+        this.isConnected = false;
+        this.lastSyncTime = null;
+        this.listeners = /* @__PURE__ */ new Set();
+        this.pollInterval = null;
+        if (this.isConfigured()) {
+          this.checkConnection();
+        }
+      }
+      _loadConfig() {
+        try {
+          if (typeof localStorage !== "undefined") {
+            const saved = localStorage.getItem(this.STORAGE_KEY);
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (parsed.url && parsed.key) return parsed;
+            }
+          }
+        } catch (e) {
+        }
+        return {
+          url: "",
+          key: ""
+        };
+      }
+      saveConfig(url, key) {
+        let cleanUrl = (url || "").trim().replace(/\/+$/, "");
+        let cleanKey = (key || "").trim();
+        this.config = { url: cleanUrl, key: cleanKey };
+        try {
+          if (typeof localStorage !== "undefined") {
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.config));
+          }
+        } catch (e) {
+        }
+        return this.checkConnection();
+      }
+      isConfigured() {
+        return Boolean(this.config.url && this.config.key && this.config.url.startsWith("https://"));
+      }
+      subscribe(callback) {
+        this.listeners.add(callback);
+        callback({ isConnected: this.isConnected, isConfigured: this.isConfigured(), lastSync: this.lastSyncTime });
+        return () => this.listeners.delete(callback);
+      }
+      _notify() {
+        const status = {
+          isConnected: this.isConnected,
+          isConfigured: this.isConfigured(),
+          lastSync: this.lastSyncTime
+        };
+        this.listeners.forEach((cb) => {
+          try {
+            cb(status);
+          } catch (e) {
+          }
+        });
+      }
+      getHeaders() {
+        return {
+          "Content-Type": "application/json",
+          "apikey": this.config.key,
+          "Authorization": `Bearer ${this.config.key}`,
+          "Prefer": "return=representation"
+        };
+      }
+      async checkConnection() {
+        if (!this.isConfigured()) {
+          this.isConnected = false;
+          this._notify();
+          return { success: false, message: "\u0E01\u0E23\u0E38\u0E13\u0E32\u0E01\u0E23\u0E2D\u0E01 Supabase URL \u0E41\u0E25\u0E30 Anon Key" };
+        }
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 4e3);
+          const res = await fetch(`${this.config.url}/rest/v1/nexus_posts?select=id&limit=1`, {
+            method: "GET",
+            headers: this.getHeaders(),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            this.isConnected = true;
+            this.lastSyncTime = /* @__PURE__ */ new Date();
+            this._notify();
+            this.startRealtimePolling();
+            return { success: true, message: "\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D Supabase Cloud \u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08 100% \u26A1" };
+          } else {
+            const errText = await res.text();
+            this.isConnected = false;
+            this._notify();
+            if (res.status === 404 || errText.includes("does not exist")) {
+              return { success: false, message: "\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D\u0E44\u0E14\u0E49 \u0E41\u0E15\u0E48\u0E22\u0E31\u0E07\u0E44\u0E21\u0E48\u0E1E\u0E1A\u0E15\u0E32\u0E23\u0E32\u0E07\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25 (\u0E01\u0E23\u0E38\u0E13\u0E32\u0E23\u0E31\u0E19 SQL Schema \u0E43\u0E19 Supabase SQL Editor)" };
+            }
+            return { success: false, message: `\u0E23\u0E2B\u0E31\u0E2A\u0E02\u0E49\u0E2D\u0E1C\u0E34\u0E14\u0E1E\u0E25\u0E32\u0E14\u0E08\u0E32\u0E01 Supabase: ${res.status} (${errText.substring(0, 80)})` };
+          }
+        } catch (e) {
+          this.isConnected = false;
+          this._notify();
+          return { success: false, message: `\u0E44\u0E21\u0E48\u0E2A\u0E32\u0E21\u0E32\u0E23\u0E16\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D\u0E44\u0E14\u0E49: ${e.message}` };
+        }
+      }
+      startRealtimePolling(onUpdate = null) {
+        if (this.pollInterval) clearInterval(this.pollInterval);
+        if (!this.isConfigured()) return;
+        this.pollInterval = setInterval(async () => {
+          if (!this.isConnected) return;
+          if (onUpdate) {
+            try {
+              const freshData = await this.fetchAllState();
+              if (freshData) onUpdate(freshData);
+            } catch (e) {
+            }
+          }
+        }, 5e3);
+      }
+      // ==========================================================================
+      // Generic REST Operations
+      // ==========================================================================
+      async fetchTable(tableName, orderColumn = "created_at") {
+        if (!this.isConnected || !this.isConfigured()) return null;
+        try {
+          const res = await fetch(`${this.config.url}/rest/v1/${tableName}?select=*&order=${orderColumn}.desc`, {
+            method: "GET",
+            headers: this.getHeaders()
+          });
+          if (res.ok) {
+            return await res.json();
+          }
+        } catch (e) {
+          console.warn(`[Supabase] Fetch table ${tableName} failed:`, e);
+        }
+        return null;
+      }
+      async upsertItem(tableName, item) {
+        if (!this.isConnected || !this.isConfigured()) return false;
+        try {
+          const res = await fetch(`${this.config.url}/rest/v1/${tableName}`, {
+            method: "POST",
+            headers: {
+              ...this.getHeaders(),
+              "Prefer": "resolution=merge-duplicates,return=representation"
+            },
+            body: JSON.stringify(item)
+          });
+          return res.ok;
+        } catch (e) {
+          console.warn(`[Supabase] Upsert ${tableName} failed:`, e);
+          return false;
+        }
+      }
+      async deleteItem(tableName, id) {
+        if (!this.isConnected || !this.isConfigured()) return false;
+        try {
+          const res = await fetch(`${this.config.url}/rest/v1/${tableName}?id=eq.${encodeURIComponent(id)}`, {
+            method: "DELETE",
+            headers: this.getHeaders()
+          });
+          return res.ok;
+        } catch (e) {
+          console.warn(`[Supabase] Delete ${tableName} failed:`, e);
+          return false;
+        }
+      }
+      // ==========================================================================
+      // High-Level Sync Adapters for NEXUS Store
+      // ==========================================================================
+      async fetchAllState() {
+        if (!this.isConfigured()) return null;
+        try {
+          const [rawPosts, rawSquads, rawChat, rawStories, rawReviews, rawTournaments, rawUsers] = await Promise.all([
+            this.fetchTable("nexus_posts"),
+            this.fetchTable("nexus_squads"),
+            this.fetchTable("nexus_chat_messages"),
+            this.fetchTable("nexus_stories"),
+            this.fetchTable("nexus_reviews"),
+            this.fetchTable("nexus_tournaments"),
+            this.fetchTable("nexus_users")
+          ]);
+          const state = {};
+          if (Array.isArray(rawPosts) && rawPosts.length > 0) {
+            state.posts = rawPosts.map((p) => ({
+              id: p.id,
+              title: p.title,
+              content: p.content,
+              category: p.category,
+              gameId: p.game_id,
+              gameName: p.game_name,
+              author: typeof p.author === "string" ? JSON.parse(p.author) : p.author || {},
+              tags: p.tags || [],
+              image: p.image,
+              video: p.video,
+              mediaType: p.media_type,
+              upvotes: p.upvotes || 0,
+              downvotes: p.downvotes || 0,
+              likes: p.likes || 0,
+              commentsCount: p.comments_count || 0,
+              comments: typeof p.comments === "string" ? JSON.parse(p.comments) : p.comments || [],
+              pinned: p.pinned || false,
+              createdAt: p.created_at ? new Date(p.created_at).toLocaleDateString("th-TH") : "\u0E44\u0E21\u0E48\u0E19\u0E32\u0E19\u0E21\u0E32\u0E19\u0E35\u0E49"
+            }));
+          }
+          if (Array.isArray(rawSquads) && rawSquads.length > 0) {
+            state.squads = rawSquads.map((s) => ({
+              id: s.id,
+              title: s.title,
+              gameId: s.game_id,
+              gameName: s.game_name,
+              mode: s.mode,
+              rankRequired: s.rank_required,
+              server: s.server,
+              hostRole: s.host_role,
+              hostName: s.host_name,
+              membersMax: s.members_max,
+              rolesNeeded: s.roles_needed || [],
+              micRequired: s.mic_required,
+              status: s.status || "open",
+              members: typeof s.members === "string" ? JSON.parse(s.members) : s.members || [],
+              createdAt: s.created_at ? new Date(s.created_at).toLocaleDateString("th-TH") : "\u0E40\u0E21\u0E37\u0E48\u0E2D\u0E2A\u0E31\u0E01\u0E04\u0E23\u0E39\u0E48"
+            }));
+          }
+          if (Array.isArray(rawChat) && rawChat.length > 0) {
+            state.chatMessages = rawChat.map((c) => ({
+              id: c.id,
+              channel: c.channel,
+              user: typeof c.user_info === "string" ? JSON.parse(c.user_info) : c.user_info || {},
+              text: c.text,
+              time: c.time || "12:00"
+            }));
+          }
+          if (Array.isArray(rawStories) && rawStories.length > 0) {
+            state.stories = rawStories.map((st) => ({
+              id: st.id,
+              userId: st.user_id,
+              userName: st.user_name,
+              userAvatar: st.user_avatar,
+              mediaUrl: st.media_url,
+              type: st.type,
+              caption: st.caption,
+              tag: st.tag,
+              viewsCount: st.views_count || 0,
+              likesCount: st.likes_count || 0,
+              createdAt: "\u0E40\u0E21\u0E37\u0E48\u0E2D\u0E2A\u0E31\u0E01\u0E04\u0E23\u0E39\u0E48"
+            }));
+          }
+          if (Array.isArray(rawReviews) && rawReviews.length > 0) {
+            state.reviews = rawReviews.map((r) => ({
+              id: r.id,
+              gameId: r.game_id,
+              gameName: r.game_name,
+              author: r.author,
+              avatar: r.avatar,
+              overallRating: parseFloat(r.overall_rating) || 5,
+              title: r.title,
+              content: r.content,
+              scores: typeof r.scores === "string" ? JSON.parse(r.scores) : r.scores || { gameplay: 9, graphics: 9, story: 9, soundtrack: 9 },
+              likes: r.likes || 0,
+              date: r.date || "\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49"
+            }));
+          }
+          if (Array.isArray(rawUsers) && rawUsers.length > 0) {
+            state.users = rawUsers.map((u) => ({
+              id: u.id,
+              name: u.name,
+              gamerTag: u.gamer_tag,
+              email: u.email,
+              password: u.password,
+              bio: u.bio,
+              avatar: u.avatar,
+              banner: u.banner,
+              level: u.level || 1,
+              xp: u.xp || 100,
+              xpNext: u.xp_next || 500,
+              rankTitle: u.rank_title,
+              favoriteGames: u.favorite_games || [],
+              friends: u.friends || [],
+              friendRequests: u.friend_requests || [],
+              sentRequests: u.sent_requests || [],
+              following: u.following || [],
+              stats: typeof u.stats === "string" ? JSON.parse(u.stats) : u.stats || {},
+              badges: typeof u.badges === "string" ? JSON.parse(u.badges) : u.badges || []
+            }));
+          }
+          this.lastSyncTime = /* @__PURE__ */ new Date();
+          this.isConnected = true;
+          this._notify();
+          return state;
+        } catch (e) {
+          console.warn("[Supabase] Sync state error:", e);
+          return null;
+        }
+      }
+      // Save Post to Supabase
+      async syncPost(post) {
+        if (!this.isConnected) return false;
+        return this.upsertItem("nexus_posts", {
+          id: post.id,
+          title: post.title,
+          content: post.content,
+          category: post.category || "discussion",
+          game_id: post.gameId || "valorant",
+          game_name: post.gameName || "Valorant",
+          author: post.author,
+          tags: post.tags || [],
+          image: post.image || null,
+          video: post.video || null,
+          media_type: post.mediaType || null,
+          upvotes: post.upvotes || 0,
+          downvotes: post.downvotes || 0,
+          likes: post.likes || 0,
+          comments_count: post.commentsCount || (post.comments ? post.comments.length : 0),
+          comments: post.comments || [],
+          pinned: post.pinned || false,
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+      // Save Squad to Supabase
+      async syncSquad(squad) {
+        if (!this.isConnected) return false;
+        return this.upsertItem("nexus_squads", {
+          id: squad.id,
+          title: squad.title,
+          game_id: squad.gameId,
+          game_name: squad.gameName,
+          mode: squad.mode,
+          rank_required: squad.rankRequired,
+          server: squad.server,
+          host_role: squad.hostRole,
+          host_name: squad.hostName || squad.members[0]?.name || "Host",
+          members_max: squad.membersMax,
+          roles_needed: squad.rolesNeeded || [],
+          mic_required: squad.micRequired || false,
+          status: squad.status || "open",
+          members: squad.members || [],
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+      // Save Tournament to Supabase
+      async syncTournament(tour) {
+        if (!this.isConnected) return false;
+        return this.upsertItem("nexus_tournaments", {
+          id: tour.id,
+          title: tour.title,
+          game: tour.game,
+          prize_pool: tour.prizePool || tour.prize_pool,
+          badge: tour.badge || null,
+          banner: tour.banner || null,
+          format: tour.format || "Single Elimination",
+          start_date: tour.startDate || tour.start_date || "\u0E40\u0E23\u0E47\u0E27\u0E46 \u0E19\u0E35\u0E49",
+          teams_max: tour.teamsMax || tour.teams_max || 32,
+          teams_registered: tour.teamsRegistered || tour.teams_registered || (tour.teams ? tour.teams.length : 0),
+          status: tour.status || "open",
+          brackets: tour.brackets || [],
+          teams: tour.teams || [],
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+      // Save Chat Message to Supabase
+      async syncChatMessage(msg) {
+        if (!this.isConnected) return false;
+        return this.upsertItem("nexus_chat_messages", {
+          id: msg.id,
+          channel: msg.channel || "general",
+          user_info: msg.user,
+          text: msg.text,
+          time: msg.time || (/* @__PURE__ */ new Date()).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
+        });
+      }
+      // Save Story to Supabase
+      async syncStory(story) {
+        if (!this.isConnected) return false;
+        return this.upsertItem("nexus_stories", {
+          id: story.id,
+          user_id: story.userId,
+          user_name: story.userName,
+          user_avatar: story.userAvatar,
+          media_url: story.mediaUrl,
+          type: story.type || "image",
+          caption: story.caption || "",
+          tag: story.tag || "#Highlight",
+          views_count: story.viewsCount || 0,
+          likes_count: story.likesCount || 0
+        });
+      }
+      // Save Review to Supabase
+      async syncReview(rev) {
+        if (!this.isConnected) return false;
+        return this.upsertItem("nexus_reviews", {
+          id: rev.id,
+          game_id: rev.gameId,
+          game_name: rev.gameName,
+          author: rev.author,
+          avatar: rev.avatar,
+          overall_rating: rev.overallRating || 5,
+          title: rev.title,
+          content: rev.content,
+          scores: rev.scores || {},
+          likes: rev.likes || 0,
+          date: rev.date || "\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49"
+        });
+      }
+      // Save User to Supabase
+      async syncUser(user) {
+        if (!this.isConnected || !user) return false;
+        return this.upsertItem("nexus_users", {
+          id: user.id,
+          name: user.name,
+          gamer_tag: user.gamerTag || user.gamer_tag || "#0000",
+          email: user.email || null,
+          password: user.password || null,
+          bio: user.bio || "",
+          avatar: user.avatar || "",
+          banner: user.banner || "",
+          level: user.level || 1,
+          xp: user.xp || 100,
+          xp_next: user.xpNext || user.xp_next || 500,
+          rank_title: user.rankTitle || user.rank_title || "\u{1F3AE} New Challenger",
+          favorite_games: user.favoriteGames || user.favorite_games || [],
+          friends: user.friends || [],
+          friend_requests: user.friendRequests || user.friend_requests || [],
+          sent_requests: user.sentRequests || user.sent_requests || [],
+          following: user.following || [],
+          stats: user.stats || {},
+          badges: user.badges || [],
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+      // One-click Seed local/default state up to Supabase Cloud
+      async seedCloudFromLocal(state, onProgress = null) {
+        if (!this.isConnected) {
+          const check = await this.checkConnection();
+          if (!check.success) return check;
+        }
+        const report = { posts: 0, squads: 0, tournaments: 0, stories: 0, reviews: 0, chat: 0, users: 0 };
+        try {
+          if (onProgress) onProgress("\u0E01\u0E33\u0E25\u0E31\u0E07\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E42\u0E1E\u0E2A\u0E15\u0E4C\u0E41\u0E25\u0E30\u0E01\u0E23\u0E30\u0E17\u0E39\u0E49...");
+          if (Array.isArray(state.posts)) {
+            for (const post of state.posts) {
+              const ok = await this.syncPost(post);
+              if (ok) report.posts++;
+            }
+          }
+          if (onProgress) onProgress("\u0E01\u0E33\u0E25\u0E31\u0E07\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E15\u0E35\u0E49 LFG...");
+          if (Array.isArray(state.squads)) {
+            for (const squad of state.squads) {
+              const ok = await this.syncSquad(squad);
+              if (ok) report.squads++;
+            }
+          }
+          if (onProgress) onProgress("\u0E01\u0E33\u0E25\u0E31\u0E07\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E17\u0E31\u0E27\u0E23\u0E4C\u0E19\u0E32\u0E40\u0E21\u0E19\u0E15\u0E4C...");
+          if (Array.isArray(state.tournaments)) {
+            for (const tour of state.tournaments) {
+              const ok = await this.syncTournament(tour);
+              if (ok) report.tournaments++;
+            }
+          }
+          if (onProgress) onProgress("\u0E01\u0E33\u0E25\u0E31\u0E07\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E23\u0E35\u0E27\u0E34\u0E27\u0E40\u0E01\u0E21...");
+          if (Array.isArray(state.reviews)) {
+            for (const rev of state.reviews) {
+              const ok = await this.syncReview(rev);
+              if (ok) report.reviews++;
+            }
+          }
+          if (onProgress) onProgress("\u0E01\u0E33\u0E25\u0E31\u0E07\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E2A\u0E15\u0E2D\u0E23\u0E35\u0E48\u0E44\u0E2E\u0E44\u0E25\u0E17\u0E4C...");
+          if (Array.isArray(state.stories)) {
+            for (const story of state.stories) {
+              const ok = await this.syncStory(story);
+              if (ok) report.stories++;
+            }
+          }
+          if (onProgress) onProgress("\u0E01\u0E33\u0E25\u0E31\u0E07\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21\u0E41\u0E0A\u0E17...");
+          if (Array.isArray(state.chatMessages)) {
+            for (const msg of state.chatMessages) {
+              const ok = await this.syncChatMessage(msg);
+              if (ok) report.chat++;
+            }
+          }
+          if (onProgress) onProgress("\u0E01\u0E33\u0E25\u0E31\u0E07\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E1A\u0E31\u0E0D\u0E0A\u0E35\u0E1C\u0E39\u0E49\u0E43\u0E0A\u0E49...");
+          if (Array.isArray(state.users)) {
+            for (const u of state.users) {
+              const ok = await this.syncUser(u);
+              if (ok) report.users++;
+            }
+          } else if (state.user) {
+            const ok = await this.syncUser(state.user);
+            if (ok) report.users++;
+          }
+          return {
+            success: true,
+            message: `\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E2A\u0E39\u0E48 Supabase \u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08! (\u0E42\u0E1E\u0E2A\u0E15\u0E4C: ${report.posts}, \u0E15\u0E35\u0E49: ${report.squads}, \u0E17\u0E31\u0E27\u0E23\u0E4C: ${report.tournaments}, \u0E23\u0E35\u0E27\u0E34\u0E27: ${report.reviews}, \u0E2A\u0E15\u0E2D\u0E23\u0E35\u0E48: ${report.stories}, \u0E1C\u0E39\u0E49\u0E43\u0E0A\u0E49: ${report.users})`,
+            report
+          };
+        } catch (e) {
+          return { success: false, message: `\u0E40\u0E01\u0E34\u0E14\u0E02\u0E49\u0E2D\u0E1C\u0E34\u0E14\u0E1E\u0E25\u0E32\u0E14\u0E43\u0E19\u0E01\u0E32\u0E23\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14: ${e.message}` };
+        }
+      }
+    };
+    supabase = new SupabaseConnector();
+  }
+});
+
 // js/store.js
 var Store, store;
 var init_store = __esm({
   "js/store.js"() {
     init_data();
     init_api();
+    init_supabase();
     Store = class {
       constructor() {
         this.STORAGE_KEY = "NEXUS_GAMING_STATE_V2";
@@ -1426,25 +1935,71 @@ var init_store = __esm({
       }
       async _initDatabaseSync() {
         try {
-          if (!api || !api.isOnline) return;
-          const serverState = await api.fetchAll();
-          if (serverState) {
-            let changed = false;
-            ["posts", "squads", "tournaments", "chatMessages", "stories", "reviews"].forEach((key) => {
-              if (Array.isArray(serverState[key]) && serverState[key].length > 0) {
-                this.state[key] = serverState[key];
-                changed = true;
+          if (supabase && supabase.isConfigured()) {
+            const cloudState = await supabase.fetchAllState();
+            if (cloudState) {
+              let changed = false;
+              ["posts", "squads", "tournaments", "chatMessages", "stories", "reviews"].forEach((key) => {
+                if (Array.isArray(cloudState[key]) && cloudState[key].length > 0) {
+                  this.state[key] = cloudState[key];
+                  changed = true;
+                }
+              });
+              if (Array.isArray(cloudState.users) && cloudState.users.length > 0) {
+                this.accounts = cloudState.users;
+                this._saveAccounts();
+              }
+              if (changed) {
+                if (typeof localStorage !== "undefined") {
+                  localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+                }
+                this.emit("sync", this.state);
+              }
+            }
+            supabase.startRealtimePolling((freshCloudState) => {
+              if (freshCloudState) {
+                let hasNew = false;
+                ["posts", "squads", "chatMessages", "stories", "reviews"].forEach((key) => {
+                  if (Array.isArray(freshCloudState[key]) && freshCloudState[key].length > 0) {
+                    if (JSON.stringify(this.state[key]) !== JSON.stringify(freshCloudState[key])) {
+                      this.state[key] = freshCloudState[key];
+                      hasNew = true;
+                    }
+                  }
+                });
+                if (hasNew) {
+                  if (typeof localStorage !== "undefined") {
+                    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+                  }
+                  this.emit("sync", this.state);
+                }
               }
             });
-            if (Array.isArray(serverState.users) && serverState.users.length > 0) {
-              this.accounts = serverState.users;
-              this._saveAccounts();
-            }
-            if (changed) {
-              if (typeof localStorage !== "undefined") {
-                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+          }
+        } catch (e) {
+          console.warn("[Store] Supabase sync initial failed:", e);
+        }
+        try {
+          if (api && api.isOnline) {
+            const serverState = await api.fetchAll();
+            if (serverState) {
+              let changed = false;
+              ["posts", "squads", "tournaments", "chatMessages", "stories", "reviews"].forEach((key) => {
+                if (Array.isArray(serverState[key]) && serverState[key].length > 0) {
+                  this.state[key] = serverState[key];
+                  changed = true;
+                }
+              });
+              if (Array.isArray(serverState.users) && serverState.users.length > 0) {
+                this.accounts = serverState.users;
+                this._saveAccounts();
               }
-              this.emit("sync", this.state);
+              if (changed) {
+                if (typeof localStorage !== "undefined") {
+                  localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+                }
+                this.emit("sync", this.state);
+              }
             }
           }
         } catch (e) {
@@ -1457,6 +2012,10 @@ var init_store = __esm({
           }
           if (typeof window !== "undefined" && api && api.isOnline) {
             api.syncState(this.state).catch(() => {
+            });
+          }
+          if (typeof window !== "undefined" && supabase && supabase.isConnected && this.state.user) {
+            supabase.syncUser(this.state.user).catch(() => {
             });
           }
         } catch (e) {
@@ -1478,6 +2037,10 @@ var init_store = __esm({
           this.accounts.push({ ...this.state.user });
         }
         this._saveAccounts();
+        if (typeof window !== "undefined" && supabase && supabase.isConnected && this.state.user) {
+          supabase.syncUser(this.state.user).catch(() => {
+          });
+        }
       }
       // Authentication
       login({ identifier, password, rememberMe = true }) {
@@ -1659,6 +2222,10 @@ var init_store = __esm({
         this.state.user.stats.postsCount = (this.state.user.stats.postsCount || 0) + 1;
         this.addXP(50);
         this.emit("posts:updated", this.state.posts);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncPost(newPost).catch(() => {
+          });
+        }
         return newPost;
       }
       toggleVote(postId, voteType) {
@@ -1679,6 +2246,10 @@ var init_store = __esm({
           post.userVoted = voteType;
         }
         this.emit("posts:updated", this.state.posts);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncPost(post).catch(() => {
+          });
+        }
       }
       addComment(postId, commentText) {
         const post = this.state.posts.find((p) => p.id === postId);
@@ -1700,6 +2271,10 @@ var init_store = __esm({
         post.commentsCount = post.comments.length;
         this.addXP(15);
         this.emit("posts:updated", this.state.posts);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncPost(post).catch(() => {
+          });
+        }
         return newComment;
       }
       toggleBookmark(postId) {
@@ -1745,6 +2320,10 @@ var init_store = __esm({
         this.state.squads.unshift(newSquad);
         this.addXP(30);
         this.emit("squads:updated", this.state.squads);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncSquad(newSquad).catch(() => {
+          });
+        }
         return newSquad;
       }
       joinSquad(squadId, selectedRole = "Player") {
@@ -1768,6 +2347,10 @@ var init_store = __esm({
         this.state.user.stats.squadsJoined = (this.state.user.stats.squadsJoined || 0) + 1;
         this.addXP(25);
         this.emit("squads:updated", this.state.squads);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncSquad(squad).catch(() => {
+          });
+        }
         return { success: true, message: "\u0E40\u0E02\u0E49\u0E32\u0E23\u0E48\u0E27\u0E21\u0E15\u0E35\u0E49\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08! \u0E40\u0E15\u0E23\u0E35\u0E22\u0E21\u0E1E\u0E23\u0E49\u0E2D\u0E21\u0E25\u0E38\u0E22" };
       }
       leaveSquad(squadId) {
@@ -1778,6 +2361,10 @@ var init_store = __esm({
           squad.status = "recruiting";
         }
         this.emit("squads:updated", this.state.squads);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncSquad(squad).catch(() => {
+          });
+        }
       }
       // Chat Actions
       sendChatMessage(text, channel = "general") {
@@ -1797,6 +2384,10 @@ var init_store = __esm({
         this.state.chatMessages.push(newMsg);
         this.addXP(2);
         this.emit("chat:updated", this.state.chatMessages);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncChatMessage(newMsg).catch(() => {
+          });
+        }
         this._simulateChatReplies(channel, text.trim());
         return newMsg;
       }
@@ -1823,6 +2414,10 @@ var init_store = __esm({
           };
           this.state.chatMessages.push(botMsg);
           this.emit("chat:updated", this.state.chatMessages);
+          if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+            supabase.syncChatMessage(botMsg).catch(() => {
+            });
+          }
         }, 1400);
       }
       // Tournament Actions
@@ -1836,6 +2431,10 @@ var init_store = __esm({
         this.state.user.stats.tournamentsEntered = (this.state.user.stats.tournamentsEntered || 0) + 1;
         this.addXP(100);
         this.emit("tournaments:updated", this.state.tournaments);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncTournament(tour).catch(() => {
+          });
+        }
         return { success: true, message: `\u0E25\u0E07\u0E17\u0E30\u0E40\u0E1A\u0E35\u0E22\u0E19\u0E17\u0E35\u0E21 "${teamName}" \u0E40\u0E02\u0E49\u0E32\u0E23\u0E48\u0E27\u0E21\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08!` };
       }
       // Reviews
@@ -1861,6 +2460,10 @@ var init_store = __esm({
         this.state.reviews.unshift(newRev);
         this.addXP(40);
         this.emit("reviews:updated", this.state.reviews);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncReview(newRev).catch(() => {
+          });
+        }
         return newRev;
       }
       // Story Actions
@@ -1886,11 +2489,19 @@ var init_store = __esm({
         this.state.stories.unshift(newStory);
         this.addXP(35);
         this.emit("stories:updated", this.state.stories);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.syncStory(newStory).catch(() => {
+          });
+        }
         return newStory;
       }
       deleteStory(storyId) {
         this.state.stories = this.state.stories.filter((s) => s.id !== storyId);
         this.emit("stories:updated", this.state.stories);
+        if (typeof window !== "undefined" && supabase && supabase.isConnected) {
+          supabase.deleteItem("nexus_stories", storyId).catch(() => {
+          });
+        }
       }
       reactStory(storyId, emoji) {
         const story = this.state.stories.find((s) => s.id === storyId);
@@ -7124,6 +7735,15 @@ function initDataManager() {
       }
     });
   }
+  const openSupabaseBtn = document.getElementById("btn-open-supabase-from-data");
+  if (openSupabaseBtn) {
+    openSupabaseBtn.addEventListener("click", () => {
+      sound.play("click");
+      if (modal) modal.classList.remove("active");
+      const sbModal = document.getElementById("modal-supabase-settings");
+      if (sbModal) sbModal.classList.add("active");
+    });
+  }
   window.addEventListener("beforeunload", () => {
     store.save();
   });
@@ -7204,6 +7824,409 @@ function renderDataStats() {
   `;
 }
 
+// js/components/supabaseModal.js
+init_supabase();
+init_store();
+init_audio();
+function initSupabaseModal() {
+  const openBtn = document.getElementById("btn-header-supabase");
+  const modal = document.getElementById("modal-supabase-settings");
+  const form = document.getElementById("form-supabase-config");
+  const inUrl = document.getElementById("supabase-in-url");
+  const inKey = document.getElementById("supabase-in-key");
+  const statusBadge = document.getElementById("supabase-status-badge");
+  const headerStatusDot = document.getElementById("header-supabase-dot");
+  const btnCopySql = document.getElementById("btn-copy-supabase-sql");
+  const btnTest = document.getElementById("btn-test-supabase");
+  const btnDisconnect = document.getElementById("btn-disconnect-supabase");
+  const btnSeed = document.getElementById("btn-seed-supabase");
+  const btnForceSync = document.getElementById("btn-force-sync-supabase");
+  const btnToggleKey = document.getElementById("btn-toggle-key");
+  const btnClose = document.getElementById("btn-close-supabase-modal");
+  if (typeof fetch !== "undefined" && !supabase.isConfigured()) {
+    fetch("/api/config/supabase").then((res) => res.ok ? res.json() : null).then((data) => {
+      if (data && data.configured && data.url && data.key) {
+        if (inUrl && !inUrl.value) inUrl.value = data.url;
+        if (inKey && !inKey.value) inKey.value = data.key;
+        supabase.saveConfig(data.url, data.key);
+      }
+    }).catch(() => {
+    });
+  }
+  if (!modal) return;
+  const updateUI = ({ isConnected, isConfigured, lastSync }) => {
+    if (headerStatusDot) {
+      headerStatusDot.className = isConnected ? "header-supabase-dot status-dot-green" : isConfigured ? "header-supabase-dot status-dot-amber" : "header-supabase-dot status-dot-grey";
+    }
+    if (statusBadge) {
+      if (isConnected) {
+        const timeStr = lastSync ? new Date(lastSync).toLocaleTimeString("th-TH") : "\u0E25\u0E48\u0E32\u0E2A\u0E38\u0E14";
+        statusBadge.innerHTML = `\u{1F7E2} \u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D Supabase Cloud \u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08 \u26A1 (Live Sync \u0E2D\u0E31\u0E1B\u0E40\u0E14\u0E15\u0E40\u0E21\u0E37\u0E48\u0E2D ${timeStr})`;
+        statusBadge.className = "supabase-badge connected";
+      } else if (isConfigured) {
+        statusBadge.innerHTML = "\u{1F7E1} \u0E01\u0E33\u0E25\u0E31\u0E07\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D / \u0E01\u0E33\u0E25\u0E31\u0E07\u0E15\u0E23\u0E27\u0E08\u0E2A\u0E2D\u0E1A\u0E15\u0E32\u0E23\u0E32\u0E07...";
+        statusBadge.className = "supabase-badge connecting";
+      } else {
+        statusBadge.innerHTML = "\u26AA \u0E22\u0E31\u0E07\u0E44\u0E21\u0E48\u0E44\u0E14\u0E49\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D (\u0E43\u0E0A\u0E49\u0E07\u0E32\u0E19\u0E42\u0E2B\u0E21\u0E14 Local Database \u0E43\u0E19\u0E40\u0E04\u0E23\u0E37\u0E48\u0E2D\u0E07)";
+        statusBadge.className = "supabase-badge offline";
+      }
+    }
+    if (inUrl && !inUrl.value && supabase.config.url) {
+      inUrl.value = supabase.config.url;
+    }
+    if (inKey && !inKey.value && supabase.config.key) {
+      inKey.value = supabase.config.key;
+    }
+  };
+  supabase.subscribe(updateUI);
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      sound.play("click");
+      if (inUrl) inUrl.value = supabase.config.url || "";
+      if (inKey) inKey.value = supabase.config.key || "";
+      modal.classList.add("active");
+    });
+  }
+  if (btnClose) {
+    btnClose.addEventListener("click", () => {
+      sound.play("click");
+      modal.classList.remove("active");
+    });
+  }
+  if (btnToggleKey && inKey) {
+    btnToggleKey.addEventListener("click", () => {
+      sound.play("click");
+      if (inKey.type === "password") {
+        inKey.type = "text";
+        btnToggleKey.textContent = "\u{1F648}";
+      } else {
+        inKey.type = "password";
+        btnToggleKey.textContent = "\u{1F441}\uFE0F";
+      }
+    });
+  }
+  if (form) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const url = inUrl.value.trim();
+      const key = inKey.value.trim();
+      if (!url || !key) {
+        showToast("\u26A0\uFE0F \u0E01\u0E23\u0E38\u0E13\u0E32\u0E01\u0E23\u0E2D\u0E01 Project URL \u0E41\u0E25\u0E30 Anon Key \u0E43\u0E2B\u0E49\u0E04\u0E23\u0E1A\u0E16\u0E49\u0E27\u0E19", "info");
+        return;
+      }
+      showToast("\u26A1 \u0E01\u0E33\u0E25\u0E31\u0E07\u0E17\u0E14\u0E2A\u0E2D\u0E1A\u0E01\u0E32\u0E23\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D\u0E44\u0E1B\u0E22\u0E31\u0E07 Supabase...", "info");
+      const res = await supabase.saveConfig(url, key);
+      if (res.success) {
+        sound.play("success");
+        triggerConfetti(window.innerWidth / 2, window.innerHeight * 0.4, 30);
+        showToast(`\u{1F389} ${res.message}`, "success");
+        modal.classList.remove("active");
+      } else {
+        sound.play("click");
+        showToast(`\u26A0\uFE0F ${res.message}`, "danger");
+      }
+    });
+  }
+  if (btnTest) {
+    btnTest.addEventListener("click", async () => {
+      sound.play("click");
+      const url = inUrl.value.trim();
+      const key = inKey.value.trim();
+      if (!url || !key) {
+        showToast("\u26A0\uFE0F \u0E01\u0E23\u0E38\u0E13\u0E32\u0E01\u0E23\u0E2D\u0E01 Project URL \u0E41\u0E25\u0E30 Anon Key \u0E01\u0E48\u0E2D\u0E19\u0E01\u0E14\u0E17\u0E14\u0E2A\u0E2D\u0E1A", "info");
+        return;
+      }
+      showToast("\u{1F50D} \u0E01\u0E33\u0E25\u0E31\u0E07\u0E17\u0E14\u0E2A\u0E2D\u0E1A\u0E01\u0E32\u0E23\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D...", "info");
+      supabase.config.url = url.replace(/\/+$/, "");
+      supabase.config.key = key;
+      const res = await supabase.checkConnection();
+      if (res.success) {
+        sound.play("success");
+        showToast(`\u2705 ${res.message}`, "success");
+      } else {
+        showToast(`\u274C ${res.message}`, "danger");
+      }
+    });
+  }
+  if (btnDisconnect) {
+    btnDisconnect.addEventListener("click", () => {
+      sound.play("click");
+      supabase.saveConfig("", "");
+      if (inUrl) inUrl.value = "";
+      if (inKey) inKey.value = "";
+      showToast("\u{1F50C} \u0E22\u0E01\u0E40\u0E25\u0E34\u0E01\u0E01\u0E32\u0E23\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D Supabase \u0E41\u0E25\u0E49\u0E27 (\u0E01\u0E25\u0E31\u0E1A\u0E2A\u0E39\u0E48\u0E42\u0E2B\u0E21\u0E14 Local)", "info");
+    });
+  }
+  if (btnCopySql) {
+    btnCopySql.addEventListener("click", () => {
+      sound.play("click");
+      const sqlCode = getSupabaseSchemaSQL();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(sqlCode).then(() => {
+          showToast("\u{1F4CB} \u0E04\u0E31\u0E14\u0E25\u0E2D\u0E01 SQL Schema \u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08! \u0E19\u0E33\u0E44\u0E1B\u0E27\u0E32\u0E07\u0E43\u0E19 Supabase SQL Editor \u0E44\u0E14\u0E49\u0E40\u0E25\u0E22", "success");
+        }).catch(() => {
+          copyFallback(sqlCode);
+        });
+      } else {
+        copyFallback(sqlCode);
+      }
+    });
+  }
+  if (btnSeed) {
+    btnSeed.addEventListener("click", async () => {
+      sound.play("click");
+      if (!supabase.isConnected) {
+        showToast("\u26A0\uFE0F \u0E01\u0E23\u0E38\u0E13\u0E32\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D Supabase \u0E43\u0E2B\u0E49\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08\u0E01\u0E48\u0E2D\u0E19\u0E17\u0E33\u0E01\u0E32\u0E23\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25", "info");
+        return;
+      }
+      btnSeed.disabled = true;
+      btnSeed.textContent = "\u23F3 \u0E01\u0E33\u0E25\u0E31\u0E07\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E2A\u0E39\u0E48 Cloud...";
+      showToast("\u{1F680} \u0E01\u0E33\u0E25\u0E31\u0E07\u0E40\u0E23\u0E34\u0E48\u0E21\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E42\u0E1E\u0E2A\u0E15\u0E4C, \u0E1B\u0E32\u0E23\u0E4C\u0E15\u0E35\u0E49, \u0E17\u0E31\u0E27\u0E23\u0E4C\u0E19\u0E32\u0E40\u0E21\u0E19\u0E15\u0E4C \u0E41\u0E25\u0E30\u0E1A\u0E31\u0E0D\u0E0A\u0E35\u0E1C\u0E39\u0E49\u0E43\u0E0A\u0E49\u0E02\u0E36\u0E49\u0E19 Supabase...", "info");
+      try {
+        const res = await supabase.seedCloudFromLocal(store.state, (progressMsg) => {
+          showToast(`\u26A1 ${progressMsg}`, "info");
+        });
+        if (res && res.success) {
+          sound.play("success");
+          triggerConfetti(window.innerWidth / 2, window.innerHeight * 0.4, 40);
+          showToast(`\u{1F389} ${res.message}`, "success");
+        } else {
+          showToast(`\u26A0\uFE0F ${res?.message || "\u0E01\u0E32\u0E23\u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E44\u0E21\u0E48\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08"}`, "danger");
+        }
+      } catch (err) {
+        showToast(`\u274C \u0E40\u0E01\u0E34\u0E14\u0E02\u0E49\u0E2D\u0E1C\u0E34\u0E14\u0E1E\u0E25\u0E32\u0E14: ${err.message}`, "danger");
+      } finally {
+        btnSeed.disabled = false;
+        btnSeed.textContent = "\u{1F680} \u0E2D\u0E31\u0E1B\u0E42\u0E2B\u0E25\u0E14\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E2A\u0E39\u0E48 Cloud \u0E15\u0E2D\u0E19\u0E19\u0E35\u0E49";
+      }
+    });
+  }
+  if (btnForceSync) {
+    btnForceSync.addEventListener("click", async () => {
+      sound.play("click");
+      if (!supabase.isConnected) {
+        showToast("\u26A0\uFE0F \u0E01\u0E23\u0E38\u0E13\u0E32\u0E40\u0E0A\u0E37\u0E48\u0E2D\u0E21\u0E15\u0E48\u0E2D Supabase \u0E01\u0E48\u0E2D\u0E19\u0E0B\u0E34\u0E07\u0E04\u0E4C\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25", "info");
+        return;
+      }
+      btnForceSync.disabled = true;
+      btnForceSync.textContent = "\u23F3 \u0E01\u0E33\u0E25\u0E31\u0E07\u0E14\u0E36\u0E07\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25...";
+      try {
+        const freshState = await supabase.fetchAllState();
+        if (freshState) {
+          ["posts", "squads", "tournaments", "chatMessages", "stories", "reviews"].forEach((key) => {
+            if (freshState[key] && Array.isArray(freshState[key]) && freshState[key].length > 0) {
+              store.state[key] = freshState[key];
+            }
+          });
+          store.emit("*");
+          sound.play("success");
+          showToast("\u{1F7E2} \u0E0B\u0E34\u0E07\u0E04\u0E4C\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E25\u0E48\u0E32\u0E2A\u0E38\u0E14\u0E08\u0E32\u0E01 Supabase Cloud \u0E40\u0E23\u0E35\u0E22\u0E1A\u0E23\u0E49\u0E2D\u0E22 100%!", "success");
+        } else {
+          showToast("\u26A0\uFE0F \u0E44\u0E21\u0E48\u0E2A\u0E32\u0E21\u0E32\u0E23\u0E16\u0E14\u0E36\u0E07\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E08\u0E32\u0E01 Cloud \u0E44\u0E14\u0E49 \u0E01\u0E23\u0E38\u0E13\u0E32\u0E15\u0E23\u0E27\u0E08\u0E2A\u0E2D\u0E1A\u0E15\u0E32\u0E23\u0E32\u0E07\u0E10\u0E32\u0E19\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25", "info");
+        }
+      } catch (err) {
+        showToast(`\u274C \u0E02\u0E49\u0E2D\u0E1C\u0E34\u0E14\u0E1E\u0E25\u0E32\u0E14\u0E43\u0E19\u0E01\u0E32\u0E23\u0E0B\u0E34\u0E07\u0E04\u0E4C: ${err.message}`, "danger");
+      } finally {
+        btnForceSync.disabled = false;
+        btnForceSync.textContent = "\u{1F504} \u0E0B\u0E34\u0E07\u0E04\u0E4C\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25 Cloud \u0E17\u0E31\u0E19\u0E17\u0E35";
+      }
+    });
+  }
+}
+function copyFallback(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+  showToast("\u{1F4CB} \u0E04\u0E31\u0E14\u0E25\u0E2D\u0E01 SQL Schema \u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08! \u0E19\u0E33\u0E44\u0E1B\u0E27\u0E32\u0E07\u0E43\u0E19 Supabase SQL Editor \u0E44\u0E14\u0E49\u0E40\u0E25\u0E22", "success");
+}
+function getSupabaseSchemaSQL() {
+  return `-- ============================================================================
+-- NEXUS GAMING TH - Supabase Complete Database Schema
+-- Copy & Paste into Supabase SQL Editor and click 'RUN'
+-- ============================================================================
+
+-- 1. Enable UUID Extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 2. Table: Posts (\u0E01\u0E23\u0E30\u0E17\u0E39\u0E49 \u0E44\u0E01\u0E14\u0E4C \u0E02\u0E48\u0E32\u0E27\u0E2A\u0E32\u0E23 \u0E21\u0E35\u0E21)
+CREATE TABLE IF NOT EXISTS public.nexus_posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  category TEXT DEFAULT 'discussion',
+  game_id TEXT DEFAULT 'valorant',
+  game_name TEXT DEFAULT 'Valorant',
+  author JSONB NOT NULL DEFAULT '{}'::jsonb,
+  tags TEXT[] DEFAULT '{}',
+  image TEXT,
+  video TEXT,
+  media_type TEXT,
+  upvotes INTEGER DEFAULT 0,
+  downvotes INTEGER DEFAULT 0,
+  likes INTEGER DEFAULT 0,
+  comments_count INTEGER DEFAULT 0,
+  comments JSONB DEFAULT '[]'::jsonb,
+  pinned BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Table: Squads (\u0E1B\u0E32\u0E23\u0E4C\u0E15\u0E35\u0E49\u0E2B\u0E32\u0E15\u0E35\u0E49\u0E40\u0E25\u0E48\u0E19\u0E40\u0E01\u0E21 LFG)
+CREATE TABLE IF NOT EXISTS public.nexus_squads (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  game_name TEXT NOT NULL,
+  mode TEXT DEFAULT 'Competitive',
+  rank_required TEXT DEFAULT 'Any Rank',
+  server TEXT DEFAULT 'Asia / Thailand',
+  host_role TEXT DEFAULT 'Flex',
+  host_name TEXT NOT NULL,
+  members_max INTEGER DEFAULT 5,
+  roles_needed TEXT[] DEFAULT '{}',
+  mic_required BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'open',
+  members JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Table: Chat Messages (\u0E2B\u0E49\u0E2D\u0E07\u0E41\u0E0A\u0E17\u0E2A\u0E14 Real-time Gamer Lounge)
+CREATE TABLE IF NOT EXISTS public.nexus_chat_messages (
+  id TEXT PRIMARY KEY,
+  channel TEXT NOT NULL DEFAULT 'general',
+  user_info JSONB NOT NULL DEFAULT '{}'::jsonb,
+  text TEXT NOT NULL,
+  time TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. Table: Stories (\u0E2A\u0E15\u0E2D\u0E23\u0E35\u0E48\u0E44\u0E2E\u0E44\u0E25\u0E17\u0E4C\u0E40\u0E01\u0E21\u0E40\u0E21\u0E2D\u0E23\u0E4C)
+CREATE TABLE IF NOT EXISTS public.nexus_stories (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  user_name TEXT NOT NULL,
+  user_avatar TEXT,
+  media_url TEXT NOT NULL,
+  type TEXT DEFAULT 'image',
+  caption TEXT,
+  tag TEXT DEFAULT '#Highlight',
+  views_count INTEGER DEFAULT 0,
+  likes_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. Table: Reviews (\u0E23\u0E35\u0E27\u0E34\u0E27\u0E40\u0E01\u0E21\u0E41\u0E25\u0E30\u0E04\u0E30\u0E41\u0E19\u0E19\u0E08\u0E32\u0E01\u0E04\u0E2D\u0E21\u0E21\u0E39\u0E19\u0E34\u0E15\u0E35\u0E49)
+CREATE TABLE IF NOT EXISTS public.nexus_reviews (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL,
+  game_name TEXT NOT NULL,
+  author TEXT NOT NULL,
+  avatar TEXT,
+  overall_rating NUMERIC(3,1) DEFAULT 5.0,
+  title TEXT,
+  content TEXT,
+  scores JSONB DEFAULT '{"gameplay":9,"graphics":9,"story":8,"soundtrack":9}'::jsonb,
+  likes INTEGER DEFAULT 0,
+  date TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Table: Tournaments (\u0E17\u0E31\u0E27\u0E23\u0E4C\u0E19\u0E32\u0E40\u0E21\u0E19\u0E15\u0E4C\u0E41\u0E25\u0E30\u0E01\u0E32\u0E23\u0E41\u0E02\u0E48\u0E07\u0E02\u0E31\u0E19)
+CREATE TABLE IF NOT EXISTS public.nexus_tournaments (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  game TEXT NOT NULL,
+  prize_pool TEXT,
+  badge TEXT,
+  banner TEXT,
+  format TEXT,
+  start_date TEXT,
+  teams_max INTEGER DEFAULT 32,
+  teams_registered INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'open',
+  brackets JSONB DEFAULT '[]'::jsonb,
+  teams JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Table: Registered Users (\u0E1A\u0E31\u0E0D\u0E0A\u0E35\u0E1C\u0E39\u0E49\u0E43\u0E0A\u0E49\u0E07\u0E32\u0E19 \u0E2A\u0E16\u0E34\u0E15\u0E34 \u0E41\u0E25\u0E30\u0E40\u0E25\u0E40\u0E27\u0E25)
+CREATE TABLE IF NOT EXISTS public.nexus_users (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  gamer_tag TEXT NOT NULL,
+  email TEXT UNIQUE,
+  password TEXT,
+  bio TEXT,
+  avatar TEXT,
+  banner TEXT,
+  level INTEGER DEFAULT 1,
+  xp INTEGER DEFAULT 100,
+  xp_next INTEGER DEFAULT 500,
+  rank_title TEXT DEFAULT '\u{1F3AE} New Challenger',
+  favorite_games TEXT[] DEFAULT '{}',
+  friends TEXT[] DEFAULT '{}',
+  friend_requests TEXT[] DEFAULT '{}',
+  sent_requests TEXT[] DEFAULT '{}',
+  following TEXT[] DEFAULT '{}',
+  stats JSONB DEFAULT '{"postsCount":0,"squadsJoined":0,"tournamentsEntered":0,"reputationScore":100}'::jsonb,
+  badges JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.nexus_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nexus_squads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nexus_chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nexus_stories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nexus_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nexus_tournaments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nexus_users ENABLE ROW LEVEL SECURITY;
+
+-- Enable Public Anon Read & Write Access
+DROP POLICY IF EXISTS "Public Anon Read Posts" ON public.nexus_posts;
+CREATE POLICY "Public Anon Read Posts" ON public.nexus_posts FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Anon Write Posts" ON public.nexus_posts;
+CREATE POLICY "Public Anon Write Posts" ON public.nexus_posts FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Anon Read Squads" ON public.nexus_squads;
+CREATE POLICY "Public Anon Read Squads" ON public.nexus_squads FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Anon Write Squads" ON public.nexus_squads;
+CREATE POLICY "Public Anon Write Squads" ON public.nexus_squads FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Anon Read Chat" ON public.nexus_chat_messages;
+CREATE POLICY "Public Anon Read Chat" ON public.nexus_chat_messages FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Anon Write Chat" ON public.nexus_chat_messages FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Anon Read Stories" ON public.nexus_stories;
+CREATE POLICY "Public Anon Read Stories" ON public.nexus_stories FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Anon Write Stories" ON public.nexus_stories FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Anon Read Reviews" ON public.nexus_reviews;
+CREATE POLICY "Public Anon Read Reviews" ON public.nexus_reviews FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Anon Write Reviews" ON public.nexus_reviews FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Anon Read Tournaments" ON public.nexus_tournaments;
+CREATE POLICY "Public Anon Read Tournaments" ON public.nexus_tournaments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Anon Write Tournaments" ON public.nexus_tournaments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Anon Read Users" ON public.nexus_users;
+CREATE POLICY "Public Anon Read Users" ON public.nexus_users FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Anon Write Users" ON public.nexus_users FOR ALL USING (true) WITH CHECK (true);
+
+-- Enable Realtime publication
+ALTER PUBLICATION supabase_realtime ADD TABLE public.nexus_posts;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.nexus_squads;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.nexus_chat_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.nexus_stories;
+`;
+}
+
 // js/app.js
 function startApp() {
   const steps = [
@@ -7213,6 +8236,7 @@ function startApp() {
       updateHeaderUserInfo(store.state.user);
     } },
     { name: "Data Manager", fn: () => initDataManager() },
+    { name: "Supabase Cloud Sync", fn: () => initSupabaseModal() },
     { name: "Hero Canvas and FX", fn: () => {
       initHeroCanvas();
       initGlobalEffects();

@@ -103,6 +103,17 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
+      // Supabase Server Environment Config Discovery
+      if (reqPath === '/api/config/supabase' && method === 'GET') {
+        const url = process.env.SUPABASE_URL || '';
+        const key = process.env.SUPABASE_ANON_KEY || '';
+        return sendJSON(res, 200, {
+          configured: Boolean(url && key),
+          url: url,
+          key: key
+        });
+      }
+
       // 1.2 Export / Sync / Reset Entire Database
       if (reqPath === '/api/db/all' && method === 'GET') {
         return sendJSON(res, 200, db.getAll());

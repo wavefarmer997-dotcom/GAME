@@ -140,6 +140,17 @@ export function initDataManager() {
     });
   }
 
+  // 5. Open Supabase Modal from Data Center
+  const openSupabaseBtn = document.getElementById('btn-open-supabase-from-data');
+  if (openSupabaseBtn) {
+    openSupabaseBtn.addEventListener('click', () => {
+      sound.play('click');
+      if (modal) modal.classList.remove('active');
+      const sbModal = document.getElementById('modal-supabase-settings');
+      if (sbModal) sbModal.classList.add('active');
+    });
+  }
+
   // Auto-save on page exit
   window.addEventListener('beforeunload', () => {
     store.save();
