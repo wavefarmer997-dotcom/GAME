@@ -1,0 +1,18 @@
+{
+  "name": "nexus-gaming-th",
+  "version": "1.0.0",
+  "description": "NEXUS GAMING TH - สังคมคนเล่นเกม หาตี้ ไกด์ ทัวร์นาเมนต์ อันดับ 1",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "gaming",
+    "esports",
+    "lfg",
+    "community"
+  ],
+  "author": "NEXUS TH",
+  "license": "MIT"
+}
