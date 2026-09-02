@@ -4,6 +4,7 @@
   "description": "NEXUS GAMING TH - สังคมคนเล่นเกม หาตี้ ไกด์ ทัวร์นาเมนต์ อันดับ 1",
   "main": "server.js",
   "scripts": {
+    "build": "npx -y esbuild js/app.js --bundle --outfile=js/bundle.js --format=esm",
     "start": "node server.js",
     "dev": "node server.js"
   },
